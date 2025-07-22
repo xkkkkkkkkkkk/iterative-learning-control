@@ -1,0 +1,40 @@
+function [u_k,yD_k,k_new,Useq_new] = ilc_func(Yseq,y_k,Useq,k,gamma)
+% Yseq：期望输出轨迹
+% y_k：实际输出
+% Useq：当前控制输入
+% k：时间索引
+% gamma：学习增益
+% u_k：当前控制输入
+% yD_k：当前期望输出
+% k_new：更新后时间索引
+% Useq_new：更新后控制输入
+% number of elements in sequence
+Nseq = numel(Yseq);
+
+% counter
+k_new = k+1;
+% reset if we've been round the sequence
+if k_new>Nseq
+    k_new=1;
+end
+
+% extract current demand signal
+yD_k = Yseq(k);
+
+% and the current control
+u_k = Useq(k);
+
+% form the error
+e_k = yD_k - y_k;
+
+% copy the control sequence over
+Useq_new = Useq;
+
+% which entry to update
+k_learn = k-1;
+if k_learn<1
+    k_learn=Nseq;
+end
+
+% do the learning update
+Useq_new(k_learn) = Useq_new(k_learn) + gamma*e_k;
