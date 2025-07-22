@@ -1,4 +1,6 @@
-clear; close all; clc;
+clear; 
+close all; 
+clc;
 
 %% 参数设置
 Ts = 0.01;          % 采样时间 (10ms)
@@ -17,6 +19,7 @@ A = [0 1; -k/m -b/m];
 B = [0; 1/m];
 C = [1 0];
 D = 0;
+
 sys_c = ss(A, B, C, D);
 
 % 离散化
@@ -56,9 +59,9 @@ for iter = 1:iter_max
     % 运行单次迭代
     for k = 1:N-1
         % 反馈控制
-        e = qd(k) - y(k);
+        e = qd(k) - y(k); % 位置差 y：位置
         edot = qd_dot(k) - x(2);
-        u_fb(k) = Kp*e + Kd*edot;
+        u_fb(k) = Kp*e + Kd*edot; % 反馈控制
         
         % 总控制量 = 前馈 + 反馈
         u_total = u_ff(k) + u_fb(k);
@@ -161,4 +164,4 @@ for i = 1:min(4, iter)
     legend('期望', '实际', 'Location', 'best');
     grid on;
     axis([0 T -0.2 1.2]);
-end
+ end
