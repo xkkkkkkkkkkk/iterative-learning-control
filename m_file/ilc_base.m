@@ -7,7 +7,7 @@ Ts = 0.01;          % 采样时间 (10ms)
 T = 5;              % 轨迹持续时间 (2秒)
 t = 0:Ts:T;         % 时间向量
 N = length(t);      % 时间步数
-iter_max =  50;      % 最大迭代次数
+iter_max =  1000;      % 最大迭代次数
 
 % 机械臂模型参数 (二阶系统近似)
 m = 1.5;            % 等效质量 (kg)
@@ -30,7 +30,7 @@ sys_d = c2d(sys_c, Ts, 'zoh');
 Lp = 0.8;           % P学习增益
 Ld = 0.2;           % D学习增益
 Q = 0.1;            % 低通滤波器Q (0-1之间)
-alpha = 0.95;       % 遗忘因子
+alpha = 0.99;       % 遗忘因子
 
 %% 期望轨迹 (五次多项式)
 t0 = 0; tf = T;
@@ -109,12 +109,12 @@ end
 
 %% 结果可视化
 % 跟踪误差曲线
-figure;
-plot(t, e_iter, 'LineWidth', 1.5);
-xlabel('时间 (s)');
-ylabel('跟踪误差 (rad)');
-title(sprintf('最终迭代跟踪误差 (RMSE=%.4f rad)', rmse(iter)));
-grid on;
+% figure;
+% plot(t, e_iter, 'LineWidth', 1.5);
+% xlabel('时间 (s)');
+% ylabel('跟踪误差 (rad)');
+% title(sprintf('最终迭代跟踪误差 (RMSE=%.4f rad)', rmse(iter)));
+% grid on;
 
 % 迭代过程收敛曲线
 figure;
@@ -136,32 +136,32 @@ title('轨迹跟踪性能');
 grid on;
 
 % 控制信号可视化
-figure;
-subplot(2,1,1);
-plot(t, u_ff, 'LineWidth', 1.5);
-xlabel('时间 (s)');
-ylabel('前馈控制 (Nm)');
-title('学习得到的前馈控制信号');
-grid on;
-
-subplot(2,1,2);
-plot(t, u_fb, 'LineWidth', 1.5);
-xlabel('时间 (s)');
-ylabel('反馈控制 (Nm)');
-title('反馈控制信号');
-grid on;
+% figure;
+% subplot(2,1,1);
+% plot(t, u_ff, 'LineWidth', 1.5);
+% xlabel('时间 (s)');
+% ylabel('前馈控制 (Nm)');
+% title('学习得到的前馈控制信号');
+% grid on;
+% 
+% subplot(2,1,2);
+% plot(t, u_fb, 'LineWidth', 1.5);
+% xlabel('时间 (s)');
+% ylabel('反馈控制 (Nm)');
+% title('反馈控制信号');
+% grid on;
 
 % 学习过程动画 (前几次迭代)
-figure;
-for i = 1:min(4, iter)
-    subplot(2,2,i);
-    plot(t, qd, 'r--', 'LineWidth', 2);
-    hold on;
-    plot(t, e_history(i,:) + qd, 'b-', 'LineWidth', 1.5);
-    title(sprintf('迭代 %d: RMSE=%.4f', i, rmse(i)));
-    xlabel('时间 (s)');
-    ylabel('位置 (rad)');
-    legend('期望', '实际', 'Location', 'best');
-    grid on;
-    axis([0 T -0.2 1.2]);
- end
+% figure;
+% for i = 1:min(4, iter)
+%     subplot(2,2,i);
+%     plot(t, qd, 'r--', 'LineWidth', 2);
+%     hold on;
+%     plot(t, e_history(i,:) + qd, 'b-', 'LineWidth', 1.5);
+%     title(sprintf('迭代 %d: RMSE=%.4f', i, rmse(i)));
+%     xlabel('时间 (s)');
+%     ylabel('位置 (rad)');
+%     legend('期望', '实际', 'Location', 'best');
+%     grid on;
+%     axis([0 T -0.2 1.2]);
+%  end
