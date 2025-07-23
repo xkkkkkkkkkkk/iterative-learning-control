@@ -4,7 +4,7 @@ clc;
 
 %% 参数设置
 Ts = 0.01;          % 采样时间 (10ms)
-T = 5;              % 轨迹持续时间 (2秒)
+T = 50;              % 轨迹持续时间 (2秒)
 t = 0:Ts:T;         % 时间向量
 N = length(t);      % 时间步数
 iter_max =  1000;      % 最大迭代次数
@@ -150,7 +150,7 @@ grid on;
 % ylabel('反馈控制 (Nm)');
 % title('反馈控制信号');
 % grid on;
-
+inverseDynamics
 % 学习过程动画 (前几次迭代)
 % figure;
 % for i = 1:min(4, iter)

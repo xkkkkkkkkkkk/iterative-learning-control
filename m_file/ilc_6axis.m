@@ -1,0 +1,206 @@
+clear; close all; clc;
+
+%% 机器人动力学参数 
+% 连杆质量 (kg)
+m = [372.27, 232.06, 202.83, 66.0035248, 0, 0]; 
+
+% 连杆质心位置 (m) - 相对于连杆坐标系
+% 3×6矩阵 [com_x1, com_x2, ...; com_y1, ...; com_z1, ...]
+com = [0.0347521,  0.486870792, 0.163764236, 0, 0, 0;
+       0.0079348, 0, -0.115, 0, 0,  0;
+       -0.236716, -0.117636803,  0.141641296, -0.300590996, 0, 0]; 
+
+% 连杆惯性张量 (kg·m²) 
+%  6×6矩阵 [Ixx,Iyy,Izz,Ixy,Ixz,Iyz] 每行一个连杆
+inertias = [9.4005009,  9.4005009, 9.4005009, 0, 0, 0;                      % 连杆1
+            0, 0, 31.50357447, 0, 0, 0;                                     % 连杆2
+            6.25921139178724, 58.47158264, 58.47158264, 0, 0, 0;            % 连杆3
+            21.8165623219505, 3.59647086679311, 21.43499647496,0, 0, 0;     % 连杆4
+            0, 0, 0,0, 0, 0;                                                % 连杆5
+            0,0,0,0, 0, 0];                                                 % 连杆6
+
+% 粘性摩擦系数 (N·m·s/rad)
+Fv = [599.361145, 476.578278, 374.719635, 56.8351135, 126.935608, 126.084808]; 
+
+% DH参数 
+d = [0.33, 0.645, 0.115, 0, 0, 0];    % 关节偏移 (d1,d2,d3 + 末端)
+a = [0,   0,   0,   1.15, 1.22, 0.215]; % 连杆长度 (L1,L2,L3)
+alpha = [0, pi/2, 0, pi/2, -pi/2, 0]; % 典型连杆扭角
+theta0 = zeros(1,6);              % 初始关节角度
+
+% 重力向量
+gravity = [0, 0, -9.81]; 
+
+
+%% 创建动力学模型函数句柄
+% 正向动力学函数 (使用牛顿-欧拉法)
+forwardDynamics = @(q, dq, tau) computeForwardDynamics(q, dq, tau,...
+                              m, com, inertias, Fv, d, a, alpha, gravity);
+
+%% ILC参数设置
+Ts = 0.01;          % 采样时间
+T = 2;              % 轨迹持续时间
+t = 0:Ts:T;         % 时间向量
+N = length(t);      % 时间步数
+iter_max = 100;     % 最大迭代次数
+
+%% 期望轨迹生成（六关节）
+qd = zeros(6, N); qd_dot = zeros(6, N); qd_ddot = zeros(6, N);
+for j = 1:6
+    % 五次多项式轨迹（每个关节独立）
+    qd0_j = 0; 
+    qdf_j = pi/3 * sin(j*pi/7); % 不同关节不同目标位置
+    qd(j,:) = qd0_j + (qdf_j - qd0_j)*(10*(t/T).^3 - 15*(t/T).^4 + 6*(t/T).^5);
+    qd_dot(j,:) = gradient(qd(j,:), t); 
+    qd_ddot(j,:) = gradient(qd_dot(j,:), t);
+end
+
+%% ILC初始化
+u_ff = zeros(6, N);     % 6维前馈控制信号
+e_history = zeros(iter_max, 6, N); 
+u_history = zeros(iter_max, 6, N);
+rmse = zeros(iter_max, 6);
+
+%% 反馈控制参数
+Kp = diag([150, 120, 100, 80, 60, 40]); % 6×6对角矩阵
+Kd = diag([15, 12, 10, 8, 6, 4]);
+
+%% 迭代学习主循环
+for iter = 1:iter_max
+    fprintf('迭代 %d/%d 进行中...\n', iter, iter_max);
+    
+    q_actual = zeros(6, N);   % 实际位置
+    dq_actual = zeros(6, N);  % 实际速度
+    
+    % 初始状态
+    q_actual(:,1) = theta0';
+    
+    % 运行单次轨迹
+    for k = 1:N-1
+        % 当前状态
+        q = q_actual(:,k);
+        dq = dq_actual(:,k);
+        
+        % 反馈控制
+        e = qd(:,k) - q;
+        de = qd_dot(:,k) - dq;
+        u_fb = Kp*e + Kd*de;
+        
+        % 总控制量 = 前馈 + 反馈
+        tau_total = u_ff(:,k) + u_fb;
+        
+        % 计算加速度 (使用自定义动力学函数)
+        ddq = forwardDynamics(q, dq, tau_total);
+        
+        % 状态更新 (欧拉积分)
+        dq_next = dq + ddq * Ts;
+        q_next = q + dq * Ts;
+        
+        % 存储结果
+        q_actual(:,k+1) = q_next;
+        dq_actual(:,k+1) = dq_next;
+    end
+    
+    % 计算误差
+    e_iter = qd - q_actual;
+    rmse(iter,:) = sqrt(mean(e_iter.^2, 2))'; % 各关节RMSE
+    
+    % ILC更新律
+    Lp = diag([0.8, 0.7, 0.6, 0.5, 0.4, 0.3]); % P学习增益
+    Ld = diag([0.2, 0.15, 0.1, 0.08, 0.06, 0.04]); % D学习增益
+    
+    if iter < iter_max
+        % 计算误差导数
+        de_iter = gradient(e_iter, t, 2);
+        
+        % PD型学习律
+        delta_u = Lp*e_iter + Ld*de_iter;
+        
+        % 低通滤波 (Q=0.1)
+        delta_u_filt = zeros(size(delta_u));
+        for j = 1:6
+            delta_u_filt(j,:) = filter([0.9, 0], [1, -0.1], delta_u(j,:));
+        end
+        
+        % 更新前馈信号 (带遗忘因子)
+        u_ff = 0.99*u_ff + delta_u_filt;
+    end
+    
+    % 显示进度
+    fprintf('关节RMSE: %.4f, %.4f, %.4f, %.4f, %.4f, %.4f\n', rmse(iter,:));
+end
+
+%% 可视化结果
+figure('Position', [100, 100, 1200, 800]);
+for j = 1:6
+    subplot(2,3,j);
+    plot(t, qd(j,:), 'r--', 'LineWidth', 1.5); hold on;
+    plot(t, q_actual(j,:), 'b-', 'LineWidth', 1);
+    title(sprintf('关节 %d 跟踪性能', j));
+    xlabel('时间 (s)'); ylabel('位置 (rad)');
+    legend('期望', '实际', 'Location', 'best');
+    grid on;
+end
+
+%% 动力学计算函数 (牛顿-欧拉法)
+function ddq = computeForwardDynamics(q, dq, tau, m, com, inertias, Fv, d, a, alpha, g)
+    % 初始化
+    n = length(q);
+    ddq = zeros(n,1);
+    
+    % 前向迭代 (计算速度和加速度)
+    v = zeros(3, n+1);
+    w = zeros(3, n+1);
+    dv = zeros(3, n+1);
+    dw = zeros(3, n+1);
+    dv(:,1) = -g'; % 重力加速度
+    
+    for i = 1:n
+        % 旋转矩阵 (DH转换)
+        R = [cos(q(i)) -sin(q(i))*cos(alpha(i))  sin(q(i))*sin(alpha(i));
+             sin(q(i))  cos(q(i))*cos(alpha(i)) -cos(q(i))*sin(alpha(i));
+             0          sin(alpha(i))           cos(alpha(i))];
+        
+        % 角速度传播
+        w(:,i+1) = R'*w(:,i) + [0; 0; dq(i)];
+        
+        % 线加速度传播
+        dv(:,i+1) = R'*(dv(:,i) + cross(dw(:,i), [a(i); d(i); 0]) +... 
+        cross(w(:,i+1), cross(w(:,i+1), [a(i); d(i); 0])));
+        
+        % 角加速度传播 (暂时设为0，将在反向迭代中计算)
+    end
+    
+    % 反向迭代 (计算力和力矩)
+    f = zeros(3, n+1);
+    tq = zeros(3, n+1);
+    
+    for i = n:-1:1
+        % 旋转矩阵
+        R = [cos(q(i)) -sin(q(i))*cos(alpha(i))  sin(q(i))*sin(alpha(i));
+             sin(q(i))  cos(q(i))*cos(alpha(i)) -cos(q(i))*sin(alpha(i));
+             0          sin(alpha(i))           cos(alpha(i))];
+        
+        % 质心加速度
+        dv_c = dv(:,i) + cross(dw(:,i), com(:,i)) + ...
+               cross(w(:,i), cross(w(:,i), com(:,i)));
+        
+        % 惯量矩阵
+        I = [inertias(i,1) inertias(i,4) inertias(i,5);
+             inertias(i,4) inertias(i,2) inertias(i,6);
+             inertias(i,5) inertias(i,6) inertias(i,3)];
+        
+        % 计算连杆力
+        f(:,i) = R*f(:,i+1) + m(i)*dv_c;
+        
+        % 计算连杆力矩
+        tq(:,i) = -cross(f(:,i), com(:,i)) + R*tq(:,i+1) + ...
+                  cross(R*f(:,i+1), com(:,i)) + I*dw(:,i) + ...
+                  cross(w(:,i), I*w(:,i));
+        
+        % 计算关节加速度
+        tau_j = tq(:,i)'*[0;0;1]; % 关节轴力矩
+        ddq(i) = (tau(i) - tau_j - Fv(i)*dq(i)) / ...
+                 ([0;0;1]'*I*[0;0;1]); % 简化惯性计算
+    end
+end
