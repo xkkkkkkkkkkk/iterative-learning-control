@@ -1,4 +1,5 @@
 clear; close all; clc;
+
 %% 参数设置
 % 机械臂参数注释
 % DH_params                 DH参数表
@@ -52,7 +53,6 @@ N = length(t);      % 时间步数
 iter_max = 50;     % 最大迭代次数 (减少以加快仿真)
 n_joints = size(DH_params, 1); % 关节数 (6)
 
-
 test_fc(g, DH_params, m, cm_pos, I, fb, fc);
 
 %% 轨迹规划 (五次多项式，每个关节独立)
@@ -102,7 +102,7 @@ for k = 1:N
     u_ff_model(:, k) = inverseDynamics(q_des(:, k), qd_des(:, k), qdd_des(:, k), g, DH_params, m, cm_pos, I, fb, fc);
 end
 
-model_confidence = 0.5; % 模型置信度
+model_confidence = 0.9; % 模型置信度
 u_ff = model_confidence * u_ff_model;
 % 主循环
 for iter = 1:iter_max
@@ -174,7 +174,7 @@ figure;
 for j = 1:3
     subplot(3,1,j);
     hold on;
-    plot(t, qd_des(j, :), 'r--', 'LineWidth', 2);
+    plot(t, q_des(j, :), 'r--', 'LineWidth', 2);
     plot(t, y(j, :), 'b-', 'LineWidth', 1.5);
     xlabel('时间 (s)');
     ylabel('位置 (rad)');
@@ -206,3 +206,19 @@ xlabel('关节编号');
 ylabel('跟踪误差 (rad)');
 title('最终迭代各关节误差分布');
 grid on;
+
+function tau_g = test_fc(g, DH_params, m, cm_pos, I, fb, fc)
+
+g = [0, 0, 9.81];
+
+tau_g = inverseDynamics(zeros(6,1),zeros(6,1),zeros(6,1), g, DH_params, m, cm_pos, I, fb, fc);
+fprintf('\n重力矩\n');
+disp(tau_g);
+    for i = 1:6
+        if abs(tau_g(i)) < fc(i)
+            fprintf('关节%.2f重力矩小于静摩擦，无法启动\n',1i);
+        else
+            fprintf('一切正常');
+        end
+    end
+end
