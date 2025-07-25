@@ -1,29 +1,28 @@
-function [q_new, qd_new] = forwardDynamics(q, qd, tau, g, DH_params, m, cm_pos, I, fb, fc, Ts)
+function [q_new, qd_new] = forwardDynamics(q_act, qd_act, tau, g, DH_params, m, cm_pos, I, fb, fc, Ts)
     
 % q                     当前关节位置
 % q_new                 新关节位置
-% qd_act                当前关节速度
+% qd               当前关节速度
 % qd_new                新关节速度
 % tau                   施加关节力矩
 % qdd_act               关节加速度
 % J_eff                 有效惯量（含电机转子）
 % tau_friction          摩擦力矩
 
-n = length(q);
+n = length(q_act);
 qdd = zeros(n,1);    
 % 力矩限幅
-tau_max = 15.0;
+tau_max = 300;
 tau = min(max(tau, -tau_max),tau_max);
 
-for j = 1:length(q)
+for j = 1:length(q_act)
     % 有效惯量 (包含电机转子惯量)
     J_eff = max(0.1,0.15+ 0.1*m(j));
     epsilon = 0.01;
-    if abs(qd(j)) > epsilon
-        sign_qd = qd(j)/(abs(qd(j) + epsilon));
-        
+    if abs(qd_act(j)) > epsilon
+        sign_qd = qd_act(j)/(abs(qd_act(j)) + epsilon);
     % 计算加速度 
-        tau_friction = fb(j)*qd(j) + fc(j)*sign_qd;
+        tau_friction = fb(j)*qd_act(j) + fc(j)*sign_qd;
     else
         max_friction = fc(j) + fb(j)*epsilon;
         tau_friction = min(max(tau(j), -max_friction), max_friction);
@@ -33,8 +32,8 @@ for j = 1:length(q)
 end
     
     % 状态更新
-qd_new = qd + qdd * Ts;
-q_new = q + qd * Ts + qdd * Ts;
+qd_new = qd_act + qdd * Ts;
+q_new = q_act + qd_new * Ts;
 
 
 end

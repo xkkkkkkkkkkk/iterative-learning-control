@@ -1,5 +1,4 @@
 clear; close all; clc;
-
 %% 参数设置
 % 机械臂参数注释
 % DH_params                 DH参数表
@@ -17,7 +16,7 @@ DH_params = [
     0,  -pi/2, 0,  0;   
     0,   0,    0,  0    
     ]; 
-g = 9.81;    
+g = [0, 0, 9.81];    
 m = [372.27, 232.06, 202.83, 66.0035248, 0, 0];  
 cm_pos = [
     0.0347521,  0.0079348,  -0.236716;  
@@ -42,8 +41,10 @@ for i = 1:6
                user_I(i,3), user_I(i,5), user_I(i,6)];
 end
  
-fb = [599.361145, 476.578278, 374.719635, 56.8351135, 126.935608, 126.084808];   
-fc = [323.836395, 632.690613, 451.073, 126.608192, 86.796814, 28.3622684];       
+%fb = [599.361145, 476.578278, 374.719635, 56.8351135, 126.935608, 126.084808];   
+%fc = [323.836395, 632.690613, 451.073, 126.608192, 86.796814, 28.3622684];       
+fb = [0,0,0,0,0,0];
+fc = [0,0,0,0,0,0];
 Ts = 0.01;          % 采样时间 (10ms)
 T = 2;              % 轨迹持续时间 (2秒)
 t = 0:Ts:T;         % 时间向量
@@ -51,23 +52,21 @@ N = length(t);      % 时间步数
 iter_max = 50;     % 最大迭代次数 (减少以加快仿真)
 n_joints = size(DH_params, 1); % 关节数 (6)
 
+
+test_fc(g, DH_params, m, cm_pos, I, fb, fc);
+
 %% 轨迹规划 (五次多项式，每个关节独立)
 q_des = zeros(n_joints, N);    % 期望位置
 qd_des = zeros(n_joints, N);   % 期望速度
 qdd_des = zeros(n_joints, N);  % 期望加速度
 
 for j = 1:n_joints
-    qd0 = 0;                   % 起始位置
-    qdf = (pi/3) * (j/2);      % 结束位置
+    q0 = 0;                   % 起始位置
+    qf = (pi/2) * (j/2);      % 结束位置
     % 五次多项式插值
-    q_des(j,:) = qd0 + (qdf - qd0) * (10*(t/T).^3 - 15*(t/T).^4 + 6*(t/T).^5);
+    q_des(j,:) = q0 + (qf - q0) * (10*(t/T).^3 - 15*(t/T).^4 + 6*(t/T).^5);
     qd_des(j,:) = [diff(q_des(j,:)) / Ts, 0]; 
     qdd_des(j,:) = [diff(qd_des(j,:)) / Ts, 0]; 
-    % 限制速度
-    %qd_des(j,:) = min(max(qd_des(j,:),-2.0),2.0);
-    %qdd_des(j,:) = [diff(qd_des(j,:)) / Ts, 0];
-    % 限制加速度
-    %qdd_des(j,:) = min(max(qdd_des(j,:),-10.0),10.0);
 end
 
 %% ILC
@@ -91,8 +90,8 @@ Lp = 0.5 * ones(1, n_joints);               % P学习增益
 Ld = 0.1 * ones(1, n_joints);               % D学习增益
 Q = 0.2;                                    % 低通滤波器系数
 alpha = 0.95;                               % 遗忘因子
-Kp = 30 * ones(1, n_joints);                % 比例增益P
-Kd = 3 * ones(1, n_joints);                 % 微分增益D
+Kp = 300 * ones(1, n_joints);                % 比例增益P
+Kd = 30 * ones(1, n_joints);                 % 微分增益D
 e_history = zeros(iter_max, N, n_joints);   % 误差历史
 u_history = zeros(iter_max, n_joints, N);   % 控制信号历史
 rmse = zeros(iter_max, 1);                  % 总体RMSE历史
@@ -108,10 +107,10 @@ u_ff = model_confidence * u_ff_model;
 % 主循环
 for iter = 1:iter_max
     % 初始化状态
-    q = zeros(n_joints, 1);      
+    q_act = zeros(n_joints, 1);      
     qd_act = zeros(n_joints, 1); 
     y = zeros(n_joints, N);      
-    y(:,1) = q;                  
+    y(:,1) = q_act;                  
     u_fb = zeros(n_joints, N);   
     
     % 运行单次迭代
@@ -122,8 +121,10 @@ for iter = 1:iter_max
         u_fb(:, k) = Kp' .* e + Kd' .* edot; 
         u_total = u_ff(:, k) + u_fb(:, k);
         % 正向动力学更新状态
-        [q, qd_act] = forwardDynamics(q, qd_act, u_total, g, DH_params, m, cm_pos, I, fb, fc, Ts);
-        y(:, k+1) = q;
+        [q_new, qd_new] = forwardDynamics(y(:,k), qd_act, u_total, g, DH_params, m, cm_pos, I, fb, fc, Ts);
+        q_act = q_new;
+        qd_act = qd_new;
+        y(:, k+1) = q_act;
         e_history(iter, k, :) = e;
     end
     
@@ -153,7 +154,12 @@ for iter = 1:iter_max
         end
     end
 end
-
+% 在第一次迭代的第一个时间步输出关键数据
+if iter == 1 && k == 1
+     fprintf('关节1初始前馈力矩: %.2f N·m\n', u_ff(1,1));
+     fprintf('关节1模型力矩: %.2f N·m\n', u_ff_model(1,1));
+     fprintf('静态摩擦力矩: %.2f N·m\n', fc(1));
+end
 %% 结果可视化
 % 迭代收敛曲线
 figure;

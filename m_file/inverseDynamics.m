@@ -89,7 +89,7 @@ function tau = inverseDynamics(q, qd, qdd, g, DH_params, m, cm_pos, I, fb, fc)
         
         % 关节力矩 (考虑摩擦)
         epsilon = 0.1;
-        sign_qd = qd(i)/(abs(qd(i) + epsilon));
+        sign_qd = qd(i)/(abs(qd(i)) + epsilon);
         tau_friction = fb(i)*qd(i) + fc(i)*sign_qd; % 使用tanh近似sign函数
         tau(i) = n_t(3,i) + tau_friction;
     end
