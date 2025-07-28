@@ -1,3 +1,9 @@
+%% 完整动力学参数
+n_joints = size(DH_params,1);
+T_total = 2;
+Ts = 0.01;
+t = 0:Ts:T_total;
+N = length(t);        % 时间步数
 % 标准DH参数表 (a, alpha, d, theta)
 DH_params = [
     0       pi/2    0.33    0;     % A1
@@ -7,7 +13,6 @@ DH_params = [
     0       pi/2    0       0;     % A5
     0      -pi/2    0.21    0      % A6
 ];
-%% 完整动力学参数
 robot_params = struct();
 robot_params.DH = DH_params;
 robot_params.g = [0, 0, -9.81];  % 重力向量 (z向下)
@@ -93,12 +98,6 @@ for j = 1:n_joints
 end
 
 %% ILC
-n_joints = size(DH_params,1);
-T_total = 2;
-Ts = 0.01;
-t = 0:ts:T_total;
-N = length(t);        % 时间步数
-
 % N = size(u_ff, 2);
 assert (N>0, "时间步数无效");
 
@@ -229,6 +228,8 @@ for iter = 1:iter_max
     fprintf('迭代 %3d: 总体RMSE = %.6f rad\n', iter, rmse(iter));
 end
 
+%% 可视化结果
+% 可视化模块1：轨迹跟踪误差
 figure;
 for j = 1:3
     subplot(3,1,j);
@@ -242,15 +243,163 @@ for j = 1:3
     grid on;
 end
 
-%% 辅助函数: 摩擦前馈计算
-function tau_f = computeFrictionFeedforward(qd, fc, fb)
-    % 连续可导的摩擦前馈模型
-    if abs(qd) > 0.01
-        tau_f = fc*sign(qd) + fb*qd;
-    else
-        % 低速区平滑过渡
-        tau_f = 2*fc*qd/0.01 + fb*qd;
+% 可视化模块2：收敛曲线
+figure('Name', 'ILC收敛过程');
+semilogy(1:iter, rmse(1:iter), 'bo-', 'LineWidth', 1.8, 'MarkerSize', 6, ...
+    'MarkerFaceColor', 'b');
+grid on;
+xlabel('迭代次数');
+ylabel('加权RMSE (log scale)');
+title('ILC收敛曲线');
+xlim([1, iter]);
+
+% 标记收敛阈值
+hold on;
+plot([1, iter], [convergence_threshold, convergence_threshold], 'r--', 'LineWidth', 1.2);
+text(iter*0.6, convergence_threshold*1.2, sprintf('收敛阈值: %.2e', convergence_threshold), ...
+    'Color', 'r');
+
+% 添加收敛信息
+if iter < iter_max
+    text(iter*0.1, rmse(1)*0.8, sprintf('收敛于迭代 %d', iter), 'FontSize', 12, 'Color', 'k');
+end
+
+% 可视化模块3：摩擦模型特性
+figure('Name', '摩擦模型特性分析', 'Position', [100 100 1000 600]);
+
+% 模拟不同速度下的摩擦力
+qd_range = linspace(-2, 2, 500); % ±2 rad/s
+tau_friction = zeros(6, length(qd_range));
+
+% 计算各关节摩擦特性
+for j = 1:6
+    for k = 1:length(qd_range)
+        tau_friction(j,k) = enhancedFrictionModel(qd_range(k), 0, ... % 零加速度
+            robot_params.fc(j), robot_params.fb(j), ...
+            robot_params.fs(j), robot_params.vs(j));
     end
+end
+
+% 绘制摩擦曲线
+colors = lines(6);
+subplot(2,1,1);
+for j = 1:6
+    plot(qd_range, tau_friction(j,:), 'Color', colors(j,:), 'LineWidth', 1.8);
+    hold on;
+end
+title('关节摩擦力矩 vs 速度');
+xlabel('关节速度 (rad/s)');
+ylabel('摩擦扭矩 (Nm)');
+legend(arrayfun(@(x) sprintf('关节%d', x), 1:6, 'UniformOutput', false));
+grid on;
+
+% 绘制Stribeck过渡区细节
+subplot(2,1,2);
+qd_detail = linspace(-0.2, 0.2, 200); % ±0.2 rad/s
+tau_detail = zeros(6, length(qd_detail));
+
+for j = 1:6
+    for k = 1:length(qd_detail)
+        tau_detail(j,k) = enhancedFrictionModel(qd_detail(k), 0, ...
+            robot_params.fc(j), robot_params.fb(j), ...
+            robot_params.fs(j), robot_params.vs(j));
+    end
+    plot(qd_detail, tau_detail(j,:), 'Color', colors(j,:), 'LineWidth', 1.8);
+    hold on;
+end
+title('Stribeck效应区域（低速细节）');
+xlabel('关节速度 (rad/s)');
+ylabel('摩擦扭矩 (Nm)');
+grid on;
+xlim([-0.2, 0.2]);
+
+%% 修复的控制信号可视化
+if iter >= 2 % 至少有两次迭代数据
+    figure('Name', '控制信号分析', 'Position', [100 100 1200 800]);
+    
+    % 选择最后3次迭代进行分析
+    iter_range = max(1, iter-2):iter;
+    colors = jet(length(iter_range));
+    
+    % 分析第3关节（典型关节）
+    j = 3;
+    
+    % 确保时间向量是列向量
+    t_col = t(:); % 转换为列向量
+    
+    % 1. 前馈控制信号变化
+    subplot(3,1,1);
+    for i = 1:length(iter_range)
+        idx = iter_range(i);
+        
+        % 安全提取控制信号并确保列向量
+        control_signal = reshape(squeeze(u_history(idx,j,:)), [], 1);
+        
+        % 检查维度并截断或填充以匹配
+        if length(control_signal) > length(t_col)
+            % 信号比时间向量长，截断
+            control_signal = control_signal(1:length(t_col));
+        elseif length(control_signal) < length(t_col)
+            % 信号比时间向量短，填充零
+            control_signal = [control_signal; zeros(length(t_col)-length(control_signal), 1)];
+        end
+        
+        % 绘图
+        plot(t_col, control_signal, 'Color', colors(i,:), 'LineWidth', 1.5);
+        hold on;
+    end
+    title(sprintf('关节%d - 前馈控制信号演变', j));
+    xlabel('时间 (s)');
+    ylabel('前馈力矩 (Nm)');
+    legend(arrayfun(@(x) sprintf('迭代%d', x), iter_range, 'UniformOutput', false));
+    grid on;
+    
+    % 2. 前馈信号增量
+    subplot(3,1,2);
+    for i = 2:length(iter_range)
+        idx_current = iter_range(i);
+        idx_prev = iter_range(i-1);
+        
+        % 提取信号
+        current_sig = reshape(squeeze(u_history(idx_current,j,:)), [], 1);
+        prev_sig = reshape(squeeze(u_history(idx_prev,j,:)), [], 1);
+        
+        % 确保相同长度
+        min_len = min(length(current_sig), length(prev_sig));
+        current_sig = current_sig(1:min_len);
+        prev_sig = prev_sig(1:min_len);
+        
+        % 计算增量
+        delta_u = current_sig - prev_sig;
+        
+        % 截断时间向量以匹配
+        t_delta = t_col(1:min_len);
+        
+        plot(t_delta, delta_u, 'Color', colors(i,:), 'LineWidth', 1.5);
+        hold on;
+    end
+    title('前馈力矩增量');
+    xlabel('时间 (s)');
+    ylabel('力矩增量 (Nm)');
+    grid on;
+    
+    % 3. 摩擦补偿信号
+    subplot(3,1,3);
+    friction_com = zeros(length(t_col),1); % 列向量
+    for k = 1:length(t_col)
+        % 确保索引不越界
+        k_idx = min(k, size(qd_des, 2));
+        friction_com(k) = enhancedFrictionModel(...
+            qd_des(j,k_idx), qdd_des(j,k_idx), ...
+            robot_params.fc(j), robot_params.fb(j), ...
+            robot_params.fs(j), robot_params.vs(j));
+    end
+    plot(t_col, friction_com, 'm-', 'LineWidth', 1.8);
+    title('摩擦补偿力矩');
+    xlabel('时间 (s)');
+    ylabel('补偿力矩 (Nm)');
+    grid on;
+    ylim([min(friction_com)*1.1, max(friction_com)*1.1]);
 end
 
 %% 逆向动力学函数
@@ -465,5 +614,15 @@ function tau_f = enhancedFrictionModel(qd, qdd, fc, fb, fs, vs)
     else
         % 完全运动区
         tau_f = fc * sign(qd) + fb * qd;
+    end
+end
+%% 摩擦前馈计算，已被上位替代
+function tau_f = computeFrictionFeedforward(qd, fc, fb)
+    % 连续可导的摩擦前馈模型
+    if abs(qd) > 0.01
+        tau_f = fc*sign(qd) + fb*qd;
+    else
+        % 低速区平滑过渡
+        tau_f = 2*fc*qd/0.01 + fb*qd;
     end
 end

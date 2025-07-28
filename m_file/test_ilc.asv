@@ -1,3 +1,9 @@
+%% 完整动力学参数
+n_joints = size(DH_params,1);
+T_total = 2;
+Ts = 0.01;
+t = 0:Ts:T_total;
+N = length(t);        % 时间步数
 % 标准DH参数表 (a, alpha, d, theta)
 DH_params = [
     0       pi/2    0.33    0;     % A1
@@ -7,7 +13,6 @@ DH_params = [
     0       pi/2    0       0;     % A5
     0      -pi/2    0.21    0      % A6
 ];
-%% 完整动力学参数
 robot_params = struct();
 robot_params.DH = DH_params;
 robot_params.g = [0, 0, -9.81];  % 重力向量 (z向下)
@@ -93,12 +98,6 @@ for j = 1:n_joints
 end
 
 %% ILC
-n_joints = size(DH_params,1);
-T_total = 2;
-Ts = 0.01;
-t = 0:ts:T_total;
-N = length(t);        % 时间步数
-
 % N = size(u_ff, 2);
 assert (N>0, "时间步数无效");
 
@@ -116,7 +115,7 @@ for k = 1:N
 end
 
 % 模型置信度 (0.8表示对模型有较高信心)
-model_confidence = 0.9;
+model_confidence = 0.6;
 u_ff = model_confidence * u_ff_model;
 
 % ILC参数
@@ -211,11 +210,11 @@ for iter = 1:iter_max
             de = [0, diff(e_joint)]/Ts;
 
             % 学习律
-            delta_u = Lp(j)*e_joint + Ld(j)*de + La(j)*qdd_des();
+            delta_u = Lp(j)*e_joint + Ld(j)*de + La(j)*qdd_des(j,:);
             
             % 低通滤波
             delta_u_filt = filtfilt(1-Q, [1, -Q], delta_u);
-
+            
             if iscolumn(delta_u_filt)
                 delta_u_filt = delta_u_filt .';
             end
@@ -229,6 +228,8 @@ for iter = 1:iter_max
     fprintf('迭代 %3d: 总体RMSE = %.6f rad\n', iter, rmse(iter));
 end
 
+%% 可视化结果
+% 轨迹跟踪误差
 figure;
 for j = 1:3
     subplot(3,1,j);
@@ -242,16 +243,7 @@ for j = 1:3
     grid on;
 end
 
-%% 辅助函数: 摩擦前馈计算
-function tau_f = computeFrictionFeedforward(qd, fc, fb)
-    % 连续可导的摩擦前馈模型
-    if abs(qd) > 0.01
-        tau_f = fc*sign(qd) + fb*qd;
-    else
-        % 低速区平滑过渡
-        tau_f = 2*fc*qd/0.01 + fb*qd;
-    end
-end
+
 
 %% 逆向动力学函数
 function tau = test_inverse(q, qd, qdd, params)
@@ -465,5 +457,15 @@ function tau_f = enhancedFrictionModel(qd, qdd, fc, fb, fs, vs)
     else
         % 完全运动区
         tau_f = fc * sign(qd) + fb * qd;
+    end
+end
+%% 摩擦前馈计算，已被上位替代
+function tau_f = computeFrictionFeedforward(qd, fc, fb)
+    % 连续可导的摩擦前馈模型
+    if abs(qd) > 0.01
+        tau_f = fc*sign(qd) + fb*qd;
+    else
+        % 低速区平滑过渡
+        tau_f = 2*fc*qd/0.01 + fb*qd;
     end
 end
