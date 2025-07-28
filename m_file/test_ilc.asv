@@ -116,7 +116,7 @@ for k = 1:N
 end
 
 % 模型置信度 (0.8表示对模型有较高信心)
-model_confidence = 0.6;
+model_confidence = 0.9;
 u_ff = model_confidence * u_ff_model;
 
 % ILC参数
@@ -211,11 +211,11 @@ for iter = 1:iter_max
             de = [0, diff(e_joint)]/Ts;
 
             % 学习律
-            delta_u = Lp(j)*e_joint + Ld(j)*de + La(j)*qdd_des(j,:);
+            delta_u = Lp(j)*e_joint + Ld(j)*de + La(j)*qdd_des();
             
             % 低通滤波
             delta_u_filt = filtfilt(1-Q, [1, -Q], delta_u);
-            
+
             if iscolumn(delta_u_filt)
                 delta_u_filt = delta_u_filt .';
             end
