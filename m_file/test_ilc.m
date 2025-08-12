@@ -1,5 +1,4 @@
 %% 完整动力学参数
-n_joints = size(DH_params,1);
 T_total = 2;
 Ts = 0.01;
 t = 0:Ts:T_total;
@@ -13,6 +12,7 @@ DH_params = [
     0       pi/2    0       0;     % A5
     0      -pi/2    0.21    0      % A6
 ];
+n_joints = size(DH_params,1);
 robot_params = struct();
 robot_params.DH = DH_params;
 robot_params.g = [0, 0, -9.81];  % 重力向量 (z向下)
