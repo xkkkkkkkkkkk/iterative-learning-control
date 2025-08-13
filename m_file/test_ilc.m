@@ -15,7 +15,7 @@ DH_params = [
 n_joints = size(DH_params,1);
 robot_params = struct();
 robot_params.DH = DH_params;
-robot_params.g = [0, 0, -9.81];  % 重力向量 (z向下)
+robot_params.g = [0, 0, 9.81];  % 重力向量 (z向下)
 robot_params.m = [225.96, 372.27, 232.06, 202.83, 66.00, 0]'; % 各连杆质量
 robot_params.cm_pos = [    % 各连杆质心位置(在连杆坐标系中)
     0, 0, 0.3225;        % Base
@@ -105,6 +105,7 @@ iter_max = 50;        % 最大迭代次数
 e_history = zeros(iter_max, N, n_joints);
 u_history = zeros(iter_max, N, n_joints);
 rmse = zeros(iter_max,1);
+alpha_filter = 0.7;
 
 % 模型前馈增强
 u_ff_model = zeros(n_joints, N);
@@ -117,6 +118,7 @@ end
 % 模型置信度 (0.8表示对模型有较高信心)
 model_confidence = 0.6;
 u_ff = model_confidence * u_ff_model;
+u_prev = u_ff;
 
 % ILC参数
 max_gain = [0.6, 0.5, 0.4, 0.3, 0.2, 0.1];
@@ -125,8 +127,15 @@ Q = 0.25; % 低通滤波器系数
 Kp = [300, 280, 250, 180, 150, 100]; % 位置增益
 Kd = [30, 28, 25, 18, 15, 10]; % 速度增益
 
+q_act_prev = q_des(:,1);
+qd_act_prev = zeros(n_joints,1);
+
 % 迭代学习控制主循环
 for iter = 1:iter_max
+    % 计算当前迭代误差能量
+    error_energy = sqrt(mean(e_iter.^2,2));
+    % 自适应调整Lp（误差越大，增益越小抑制震荡）
+    adaptive_factor = exp(-0.5 * error_energy);
     Lp = min_gain + (max_gain - min_gain).*exp(-0.1*iter); % P型学习增益
     Ld = 0.3 * Lp; % D型学习增益
     La = [0.07, 0.06, 0.05, 0.04, 0.03, 0.02];
@@ -135,21 +144,14 @@ for iter = 1:iter_max
     y = zeros(n_joints, N);
     u_fb = zeros(n_joints, N);
 
-    if iter < 5
-        alpha = 0.7; % 低遗忘，快速学习
-    elseif iter < 15
-        alpha = 0.85; % 正常遗忘
-    else
-        alpha = 0.95; % 高遗忘，稳定收敛
-    end
+    alpha = max(0.6,0.92 - 0.032*(iter-1)); % 迭代一次后开始衰减
 
     % 运行单次迭代
     for k = 1:N-1
-        % 反馈控制
-        e = q_des(:,k) - q_act;
-        edot = qd_des(:,k) - qd_act;
-        u_fb(:,k) = Kp' .* e + Kd' .* edot;
-        
+        % 反馈控制tau_total
+        e = q_des(:,k) - q_meas_filtered;
+        u_fb(:,k) = Kp' .* e + Kd' .* edot_meas;
+
         % 摩擦前馈补偿
         friction_comp = zeros(n_joints,1);
         for j = 1:n_joints
@@ -157,20 +159,42 @@ for iter = 1:iter_max
                 qd_des(j,k), qdd_des(j,k), robot_params.fc(j), robot_params.fb(j), ...
                 robot_params.fs(j), robot_params.vs(j));
         end
-        
+
         % 总控制力矩
         tau_total = u_ff(:,k) + u_fb(:,k) + friction_comp;
-        
+
+        % 修复前馈力矩历史记录
+        if iter == 1
+            u_history(iter, :, :) = u_ff'; % 初始化存储
+        else
+            u_history(iter, :, :) = permute(u_ff, [2,1]); % 保存当前迭代的u_ff
+        end
+
         % 正向动力学更新状态
-        [q_new, qd_new] = test_forward(...
-            q_act, qd_act, tau_total, robot_params, Ts);
-        
-        % 更新状态
-        q_act = q_new;
-        qd_act = qd_new;
-        y(:,k+1) = q_act;
+        [q_new, qd_new] = test_forward(q_act_prev, qd_act_prev, tau_total, robot_params, Ts);
+        % 初始化传感器测量值（若首次迭代无历史数据，用模型输出初始化）
+        if k == 1
+            q_meas_prev = q_new;  % 首次迭代用模型输出初始化
+        else
+            q_meas_prev = q_meas_filtered;  % 非首次迭代用上一次滤波值
+        end
+        q_meas_filtered = alpha_filter * q_new + (1 - alpha_filter) * q_meas_prev;  % 传感器端滤波
+
+        % 计算误差（基于滤波后的传感器测量值）
+        e = q_des(:,k) - q_meas_filtered;  % 关键修正：误差源于实际测量（非模型输出）
+
+        % 反馈控制（使用滤波后的误差）
+        edot_meas = (q_meas_filtered - q_meas_prev) / Ts;  % 滤波后速度变化率
+        u_fb(:,k) = Kp' .* e + Kd' .* edot_meas;  % 反馈控制力矩
+
+        % 更新控制器状态（用于下一次迭代）
+        q_act_prev = q_new;  % 保存模型输出的位置状态
+        qd_act_prev = qd_new;  % 保存模型输出的速度状态
+
+        % 存储实际轨迹（滤波后的值）
+        y(:,k+1) = q_meas_filtered;  % 存储滤波后的实际位置
     end
-    
+
     % 计算跟踪误差
     joint_weights = [0.4, 0.3, 0.2, 0.05, 0.03, 0.02];
 
@@ -182,18 +206,13 @@ for iter = 1:iter_max
     weighted_sum = dot(joint_rmse,joint_weights);
     rmse(iter) = weighted_sum / total_weights;
     e_history(iter,:,:) = e_iter';
-    
-    % 收敛判断
-    convergence_threshold = 1e-5 + 0.5e-5 * iter;
 
-    if iter > 1 && rmse(iter) < convergence_threshold
-        fprintf('收敛于迭代 %d, 最终RMSE: %.6f rad\n', iter, rmse(iter));
-        break;
-    elseif iter > 10 && all(abs(diff(rmse(iter-9:iter))) < 1e-6)
-        fprintf('收敛于迭代 %d, 最终RMSE: %.6f rad\n', iter, rmse(iter));
+    % 收敛判断
+    if iter > 5 && all(rmse(iter-4:iter) - rmse(iter-5:iter-1)) < 1e-7
+        fprintf('误差趋于稳定，提前收敛\n');
         break;
     end
-    
+
     % ILC更新律
     if iter < iter_max 
         for j = 1:n_joints
@@ -206,25 +225,32 @@ for iter = 1:iter_max
             if iscolumn(e_joint)
                 e_joint = e_joint .';
             end
-            
+
             de = [0, diff(e_joint)]/Ts;
 
             % 学习律
             delta_u = Lp(j)*e_joint + Ld(j)*de + La(j)*qdd_des(j,:);
-            
+
             % 低通滤波
             delta_u_filt = filtfilt(1-Q, [1, -Q], delta_u);
-            
+
             if iscolumn(delta_u_filt)
                 delta_u_filt = delta_u_filt .';
             end
-            
+
             % 更新前馈信号 (带遗忘因子)
             update_term = alpha*u_ff(j,:) + delta_u_filt;
-            u_ff(j,:) = update_term(:).';
+
+            % 替换原有的 u_ff 更新逻辑
+            raw_momentum = 0.3 *(u_ff(j,:) - u_prev(j,:));
+            % 限制动量最大幅度
+            max_momentum_mag = 0.1* max(abs(u_ff(j,:)));
+            momentum = sign(raw_momentum).* min(abs(raw_momentum), max_momentum_mag);
+            delta_u_filt = alpha * delta_u_filt;  % 加入遗忘因子
+            u_ff(j,:) = alpha* u_ff(j,:) + delta_u_filt + momentum; % 增量更新
         end
     end
-    
+
     fprintf('迭代 %3d: 总体RMSE = %.6f rad\n', iter, rmse(iter));
 end
 
@@ -251,7 +277,7 @@ grid on;
 xlabel('迭代次数');
 ylabel('加权RMSE (log scale)');
 title('ILC收敛曲线');
-xlim([1, iter]);
+xlim([1, iter_max]);
 
 % 标记收敛阈值
 hold on;
@@ -312,6 +338,22 @@ xlabel('关节速度 (rad/s)');
 ylabel('摩擦扭矩 (Nm)');
 grid on;
 xlim([-0.2, 0.2]);
+
+%% 绘制滤波前后的位置信号对比
+figure('Name', '滤波效果验证');
+subplot(2,1,1);
+plot(t, q_des(j,:), 'r--', t, y(j,:), 'b-', t, q_meas(j,:), 'g:');
+legend('期望', '实际（无滤波）', '实际（滤波后）');
+title('位置信号滤波效果');
+xlabel('时间 (s)');
+ylabel('位置 (rad)');
+
+subplot(2,1,2);
+plot(t, tau_total(j,:), 'm-', t, tau_filtered(j,:), 'c:');
+legend('总力矩（无滤波）', '总力矩（滤波后）');
+title('控制力矩滤波效果');
+xlabel('时间 (s)');
+ylabel('力矩 (Nm)');
 
 %% 修复的控制信号可视化
 if iter >= 2 % 至少有两次迭代数据
@@ -419,7 +461,8 @@ function tau = test_inverse(q, qd, qdd, params)
     % 初始化变量
     w = zeros(3,1);       % 基座角速度
     dw = zeros(3,1);      % 基座角加速度
-    vd = g;               % 基座线加速度(含重力)
+    g_vector = [0, 0, -9.81];
+    vd = g_vector;               % 基座线加速度(含重力)
     
     % 前向递推 (计算速度和加速度)
     w_save = zeros(3,n+1);
@@ -531,11 +574,7 @@ function tau = test_inverse(q, qd, qdd, params)
 
         % 考虑电机转子加速度的真实效应
         rotor_acc = qdd(i) * abs(gr);
-        if gr < 0
-            tau(i) = tau(i)/abs(gr) - Jm * rotor_acc;
-        else
-            tau(i) = tau(i)/abs(gr) + Jm * rotor_acc;
-        end
+        tau(i) = tau(i)/abs(gr) +sign(gr)* Jm* rotor_acc;
     end
     
     % 辅助函数: 连续摩擦模型
@@ -590,7 +629,17 @@ function [q_new, qd_new] = test_forward(q, qd, tau, params, Ts)
             % 添加电机惯量
             gr = params.gear_ratio(i);
             Jm = params.motor_inertia(i);
+            % 原电机惯量补偿
             M_col(i) = M_col(i) + Jm*gr^2;
+            
+            %% 关键修改
+            % 补充连杆间耦合项 假设相邻连杆质量耦合系数为0.05
+            for j = 1:n
+                if j ~= 1
+                    coupling = 0.05 * params.m(j) * norm(params.DH(j,1:3) - params.DH(i,1:3));
+                    M_col(i) = M_col(i)+ coupling;
+                end
+            end
             M(:,i) = M_col;
         end
     end
@@ -604,17 +653,12 @@ end
 
 %% 增强摩擦模型函数
 function tau_f = enhancedFrictionModel(qd, qdd, fc, fb, fs, vs)
-    % Stribeck摩擦模型
-    if abs(qd) < 0.001
-        % 静止区：预滑动效应建模
-        tau_f = min(fs, abs(qdd)*0.5) * sign(qd);
-    elseif abs(qd) < vs
-        % Stribeck过渡区
-        tau_f = (fc + (fs - fc)*exp(-(abs(qd)/vs)^0.5)) * sign(qd);
-    else
-        % 完全运动区
-        tau_f = fc * sign(qd) + fb * qd;
-    end
+    % 统一Stribeck模型（避免非连续跳变）
+    beta = 50;
+    stribeck = fc + (fs - fc) * exp(-(abs(qd)/vs)^0.5);
+    viscous = fb * qd;
+    w = 1./ (1 + exp(-beta*(abs(qd) - 05*vs)));
+    tau_f = sign(qd) .* ((1-w).*stribeck + w.*(fc + viscous));
 end
 %% 摩擦前馈计算，已被上位替代
 function tau_f = computeFrictionFeedforward(qd, fc, fb)
