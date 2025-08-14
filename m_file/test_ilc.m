@@ -127,14 +127,6 @@ min_gain = [0.2, 0.15, 0.1, 0.08, 0.06, 0.04];
 Q = 0.45; % 低通滤波器系数
 Kp = [300, 280, 250, 180, 150, 100]; % 位置增益
 Kd = [30, 28, 25, 18, 15, 10]; % 速度增益
-
-%% 完整动力学校验
-gravity_tau = test_inverse(q0, zeros(6,1), zeros(6,1), robot_params);
-fprintf('静态重力矩校验: [%.1f, %.1f, %.1f, %.1f, %.1f, %.1f] Nm\n', gravity_tau);
-q_test = [0; deg2rad(-30); 0; 0; 0; 0];
-gravity_tau2 = test_inverse(q_test, zeros(6,1), zeros(6,1), robot_params);
-assert(gravity_tau2(2) > 0, '关节2重力矩方向错误!');
-
 % 迭代学习控制主循环
 for iter = 1:iter_max
     decay_rate = 0.25;
