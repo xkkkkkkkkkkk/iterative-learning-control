@@ -3,23 +3,21 @@ clear; close all; clc;
 %% 参数设置
 % 机械臂参数注释
 % DH_params                 DH参数表
-% cm_pos                    各关节质心坐标
+% r                    各关节质心坐标
 % fb                        粘滞摩擦系数
 % fc                        库仑摩擦系数
 % m                         连杆质量
 d1 = 0.33; d2 = 0.645; d3 = 0.115;  % d参数
 L1 = 1.15; L2 = 1.22; L3 = 0.215;  % 连杆长度
-DH_params = [
-    0,   pi/2, d1, 0;   
-    L1,  0,    d2, 0;   
-    L2,  0,    d3, 0;   
-    L3,  pi/2, 0,  0;   
-    0,  -pi/2, 0,  0;   
-    0,   0,    0,  0    
-    ]; 
+DH_params=[0.33,-0.645,0,0,0;    
+    1.15,0.645,0,pi/2,pi/2;
+    1.22,0.115,0,0,0;
+    0.215,0.17415,0,0,pi/2;
+    0,0.11985,0,pi/2,0;
+    0,0.11655,0,-pi/2,0];
 g = [0, 0, 9.81];    
 m = [372.27, 232.06, 202.83, 66.0035248, 0, 0];  
-cm_pos = [
+r = [
     0.0347521,  0.0079348,  -0.236716;  
     0.486870792, 0,  -0.117636803;   
     0.163764236, 0,  0.141641296;  
@@ -42,18 +40,23 @@ for i = 1:6
                user_I(i,3), user_I(i,5), user_I(i,6)];
 end
  
-%fb = [599.361145, 476.578278, 374.719635, 56.8351135, 126.935608, 126.084808];   
-%fc = [323.836395, 632.690613, 451.073, 126.608192, 86.796814, 28.3622684];       
-fb = [0,0,0,0,0,0];
-fc = [0,0,0,0,0,0];
+B = [599.361/(256.857^2),476.578/(269.176^2),374.719/(251.333^2),...
+    56.835/(188.855^2),126.935/(190.192^2),126.084/(131.340^2)];   
+Fc=[323.836/256.857,-323.836/256.857;
+    632.69/269.176,-632.69/269.176;
+    451.073/251.333,-451.073/251.333;
+    126.608/269.176,-126.608/269.176;
+    86.797/190.192,-86.797/190.192;
+    28.362/131.340,-28.362/131.340;];    
+% B = [0,0,0,0,0,0];
+% Fc = [0,0,0,0,0,0];
 Ts = 0.01;          % 采样时间 (10ms)
 T = 2;              % 轨迹持续时间 (2秒)
 t = 0:Ts:T;         % 时间向量
 N = length(t);      % 时间步数
 iter_max = 50;     % 最大迭代次数 (减少以加快仿真)
 n_joints = size(DH_params, 1); % 关节数 (6)
-
-test_fc(g, DH_params, m, cm_pos, I, fb, fc);
+test_fc(g, DH_params, m, r, I, B, Fc);
 
 %% 轨迹规划 (五次多项式，每个关节独立)
 q_des = zeros(n_joints, N);    % 期望位置
@@ -99,7 +102,7 @@ u_ff = zeros(n_joints, N);                  % 前馈控制力矩
 u_ff_model = zeros(n_joints, N);            % 理论计算的前馈控制力矩
 
 for k = 1:N
-    u_ff_model(:, k) = inverseDynamics(q_des(:, k), qd_des(:, k), qdd_des(:, k), g, DH_params, m, cm_pos, I, fb, fc);
+    u_ff_model(:, k) = inverseDynamics(q_des(:, k), qd_des(:, k), qdd_des(:, k), g, DH_params, m, r, I, B, Fc);
 end
 
 model_confidence = 0.9; % 模型置信度
@@ -121,7 +124,7 @@ for iter = 1:iter_max
         u_fb(:, k) = Kp' .* e + Kd' .* edot; 
         u_total = u_ff(:, k) + u_fb(:, k);
         % 正向动力学更新状态
-        [q_new, qd_new] = forwardDynamics(y(:,k), qd_act, u_total, g, DH_params, m, cm_pos, I, fb, fc, Ts);
+        [q_new, qd_new] = forwardDynamics(y(:,k), qd_act, u_total, g, DH_params, m, r, I, B, Fc, Ts);
         q_act = q_new;
         qd_act = qd_new;
         y(:, k+1) = q_act;
@@ -158,7 +161,7 @@ end
 if iter == 1 && k == 1
      fprintf('关节1初始前馈力矩: %.2f N·m\n', u_ff(1,1));
      fprintf('关节1模型力矩: %.2f N·m\n', u_ff_model(1,1));
-     fprintf('静态摩擦力矩: %.2f N·m\n', fc(1));
+     fprintf('静态摩擦力矩: %.2f N·m\n', Fc(1));
 end
 %% 结果可视化
 % 迭代收敛曲线
@@ -174,29 +177,29 @@ figure;
 for j = 1:3
     subplot(3,1,j);
     hold on;
-    plot(t, q_des(j, :), 'r--', 'LineWidth', 2);
+    plot(t, q_des(j+3, :), 'r--', 'LineWidth', 2);
     plot(t, y(j, :), 'b-', 'LineWidth', 1.5);
     xlabel('时间 (s)');
     ylabel('位置 (rad)');
     legend('期望', '实际', 'Location', 'best');
-    title(sprintf('关节 %d 轨迹跟踪', j));
+    title(sprintf('关节 %d 轨迹跟踪', j+3));
     grid on;
 end
 
 % 控制信号 (关节1)
 figure;
 subplot(2,1,1);
-plot(t, u_ff(1, :), 'LineWidth', 1.5);
+plot(t, u_ff(2, :), 'LineWidth', 1.5);
 xlabel('时间 (s)');
 ylabel('前馈控制 (Nm)');
-title('关节1前馈控制信号');
+title('关节2前馈控制信号');
 grid on;
 
 subplot(2,1,2);
-plot(t, u_fb(1, :), 'LineWidth', 1.5);
+plot(t, u_fb(2, :), 'LineWidth', 1.5);
 xlabel('时间 (s)');
 ylabel('反馈控制 (Nm)');
-title('关节1反馈控制信号');
+title('关节2反馈控制信号');
 grid on;
 
 % 误差分布图
@@ -207,16 +210,16 @@ ylabel('跟踪误差 (rad)');
 title('最终迭代各关节误差分布');
 grid on;
 
-function tau_g = test_fc(g, DH_params, m, cm_pos, I, fb, fc)
+function tau_g = test_fc(g, DH_params, m, r, I, fb, fc)
 
 g = [0, 0, 9.81];
 
-tau_g = inverseDynamics(zeros(6,1),zeros(6,1),zeros(6,1), g, DH_params, m, cm_pos, I, fb, fc);
+tau_g = inverseDynamics(zeros(6,1),zeros(6,1),zeros(6,1), g, DH_params, m, r, I, fb, fc);
 fprintf('\n重力矩\n');
 disp(tau_g);
     for i = 1:6
         if abs(tau_g(i)) < fc(i)
-            fprintf('关节%.2f重力矩小于静摩擦，无法启动\n',1i);
+            fprintf('关节%.2f重力矩小于静摩擦，无法启动\n',i);
         else
             fprintf('一切正常');
         end
