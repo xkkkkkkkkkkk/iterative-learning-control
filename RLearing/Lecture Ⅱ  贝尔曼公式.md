@@ -132,11 +132,59 @@ $\pi(a|s)$ 是依赖于policy的，所以求解贝尔曼公式的过程也可以
 
 $p(r | s,a)$ 和 $p(s' | s,a)$ 代表的是dynamic model动态模型，当没有模型时也可以求解贝尔曼公式。
 
-## 4.  Bellman equation： Matrix vector form
+## 4.  Bellman equation： Matrix vector form矩阵向量形式
+
+对于状态$s_i$ 跳转到状态$s_j$，其贝尔曼公式为
+$$
+v_\pi(s_i) = r_\pi(s_i) + \gamma \sum_{s_j}{p_\pi(s_j|s_i)v_\pi(s_j)}
+$$
+将n个贝尔曼公式联立可得通式
+$$
+v_\pi = r_\pi + \gamma P\pi v_\pi \\其中\\v_\pi = [v_\pi(s_1),\ldots,v_\pi(s_n)]^T\in R_n\\r_\pi = [r_\pi(s_1),\ldots,r_\pi(s_n)]^T\in R_n\\P_\pi\in R^{n×n},where \underbrace {[P_\pi]_{ij}=p_\pi(s_j|s_i)}_{第i行第j列的元素是从s_i跳到s_j的概率},\\
+$$
 
 ## 5.  Bellman equation： Solve the state value
 
+#### 求解$v_\pi$ ,进行策略评估（policy evaluation）
+
+法一：直接解法（需要求逆，实际运算不使用）
+$$
+v_\pi = (I - \gamma P_\pi)_{-1}r_\pi
+$$
+法二：迭代求解，预设$v_0$ 初值，进行迭代，当$ k \rightarrow \infty$ 时，可证明的$v_{k+1}\rightarrow v_\pi$ 
+$$
+v_{k+1} = r_\pi +\gamma P_\pi v_k
+$$
+
 ## 6. Action value
 
-## 7. Summary
+定义：$ q_\pi(s,a) = E[G_t|S_t = s,A_t = a]$ 从状态$S_t$ 出发，采取action a所得到的ruturn的期望
+
+$ q_\pi(s,a)$ 是依赖于state 和 action 的函数
+
+### state value $v_\pi(s)$和action value $q_\pi(s,a)$ 之间的联系
+
+#### （已知所有 action value求state value）
+
+$$
+\underbrace{E[G_t|S_t = s]}_{v_\pi(s)} = \sum_{a} \underbrace{E[G_t|S_t = s,A_t = a]}_{q_\pi(a,s)}\pi(a|s)
+$$
+
+所以二者之间关系即可表示为
+$$
+v_\pi(s) = \sum_{a}\pi(a|s)q_\pi(s,a)
+$$
+结合3.state value中的表达式可以得到$ q_\pi(s,a) $ 的具体表达式
+
+#### （已知所有state value 求 action value）
+
+$$
+ q_\pi(s,a) = \sum_{r}p(r|s,a)r + \gamma \sum_{s'}p(s'|s,a)v_\pi(s') 
+$$
+
+![](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250820101912743.png)
+
+当在$s_1$ 状态是，虽然policy指示的action是向右走，但是不代表action value只有这一种，其余的action也都有对应的action value可以求出
+
+## 
 
