@@ -88,8 +88,6 @@ $$
 
 3.state value的value也代表对应状态的value，也代表对应策略的value。
 
-![image-20250819151002849](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250819151002849.png
-
 ## 3.  Bellman equation： Derivation推导
 
 考虑一个trajectory     $S_t \xrightarrow{{A_t}} R_{t+1},S_{t+1} \xrightarrow{{A_{t+1}}} R_{t+2},S_{t+2} \xrightarrow{{A_{t+2}}} R_{t+3},S_{t+3} \ldots$ 
@@ -156,7 +154,7 @@ $$
 v_{k+1} = r_\pi +\gamma P_\pi v_k
 $$
 
-## 6. Action value
+## 6. Action value(==q(s,a)==)
 
 定义：$ q_\pi(s,a) = E[G_t|S_t = s,A_t = a]$ 从状态$S_t$ 出发，采取action a所得到的ruturn的期望
 
@@ -186,5 +184,5 @@ $$
 
 当在$s_1$ 状态是，虽然policy指示的action是向右走，但是不代表action value只有这一种，其余的action也都有对应的action value可以求出
 
-## 
+
 
