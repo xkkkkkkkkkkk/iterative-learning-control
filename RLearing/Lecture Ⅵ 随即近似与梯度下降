@@ -1,0 +1,133 @@
+# Lecture Ⅵ  Stochastic Approximation and Stochastic Gradient Descent
+
+## 1. Motivating examples
+
+考虑均值估计问题，一个随机变量X，求其均值E[X]。假设已经收集了独立同分布的x样本{$x_i$}$_{i=1}^N$ 
+
+此时X的期望可以被近似为：$E[X] \approx \overset{-}{x} := \frac{1}{N}\sum_{i=1}^N{x_i}$ ,  当$N \rightarrow \infty,\ \overset{-}{x} \rightarrow E[X] $ 
+
+#### 对于计算$\overset{-}{x}$ 的两种方法：
+
+①. 收集所有样本后计算平均值，需等待样本逐个采集。
+
+②. 利用已采集的样本逐步递进的迭代计算均值
+
+​	 假设收集到k个样本后的均值为$w_{k+1} = \frac{1}{k}\sum_{i=1}^k{x_i}$ 				k = 1,2,$\ldots$
+
+​	 与之对应的，$w_k = \frac{1}{k-1}\sum_{i=1}^{k-1}{x_i}$ 										  k = 2,3,$\ldots$    
+
+​     由此可以得到$w_{k+1}$ 可以由 $w_k$ 表示为
+$$
+\begin{split}
+w_{k+1}  &= \frac{1}{k}\sum_{i=1}^k{x_i} = \frac{1}{k}\left( \sum_{i=1}^{k-1}{x_i}+x_k \right)\\
+		 &= \frac{1}{k}((k-1)w_k+x_k) = w_k - \frac{1}{k}(w_k-x_k)
+\end{split}
+$$
+由此可以得到如下的迭代算法
+$$
+w_{k+1} = w_k - \frac{1}{k}(w_k -x_k)
+$$
+该算法的优点在于得到样本后立刻可以得到估计的均值，得到的均值也可以即刻用于其他目的。该估计值在开始阶段会因为缺乏充足的样本数量而不准确（$w_k \neq E[X]$） 但是有总比没有好，随着获取更多样本，估计值最后会收敛于E[X]。
+
+#### 考虑一种更通用形式的算法 $w_{k+1} = w_k - \alpha_k(w_k -x_k)$  ,其中$\frac{1}{k}$ 被替换成了$\alpha_k > 0$ 
+
+当$\alpha_k$ 满足一些‘mild condition’，该算法最后仍然会收敛于E[X]
+
+该算法是一种特殊的随机近似算法也是一种特殊的随机梯度下降算法
+
+## 2. Robbins-Monro algorithm
+
+Stochastic approximation（SA）：一种广泛用于求解根方程或优化问题的迭代算法。相比于梯度下降等求根算法，SA的优势在于不需要已知目标函数的表达式或导数。
+
+Robbins-Monroe（RM）algorithm：在随即逼近领域非常知名，随机梯度下降算法就是RM算法的一种特殊形式。
+
+#### 考虑方程g(w) = 0的求解
+
+其中w是要求解的变量，g是一个函数。许多问题最终都会转换中求根问题的形式进行求解，例如假设J(w)为需要求最小值的目标函数，则最优化问题可以被转换为==下式==
+$$
+g(w) = \nabla_wJ(w) = 0
+$$
+需要注意，对于类似方程g(w) = c，其中c为常数。也可以转换为g(w) - c  = 0 作为新的目标方程。
+
+### Algorithm description
+
+考虑当g（w）表达式未知如何求解
+
+#### RM algorithm可以解决这类问题：$w_{k+1} = w_k -a_k \tilde{g}(w_k,\eta_k)$         k = 1,2,3...   其中
+
+$w_k$ 是根的第k次估计值
+
+$\tilde{g}(w_k,\eta_k) = g(w_k) + \eta_k$ 是第k个噪音观测值
+
+$a_k$ 为一个正系数
+
+函数g(w)是一个黑盒子，算法依赖于数据：输入序列{w(k)},嘈杂的输出序列{$\tilde {g}(w_k,\eta_k) $} 
+
+### Illustrative examples
+
+为了说明 RM 算法，我们来看一个示例，其中 g(w) = w³ - 5。真正的根值为 51/3 ≈ 1.71。现在假设我们只能观测输入 w 和输出 g(w) = g(w) + n，其中 n 是独立同分布的，并服从均值为零、标准差为 1 的标准正态分布。初始猜测为 $w_i$ = 0，系数为 $a_k $= $\frac{1}{k}$ 。w 的演化过程如图 6.3 所示。尽管观测值受到噪声 $n_k$ 的干扰，但估计值 w 仍能收敛到真正的根值。请注意，初始猜测 $w_i$ 必须经过适当选择，以确保针对特定函数 g(w) = w³ - 5 的收敛性。在接下来的小节中，我们将介绍 RM 算法在任何初始猜测下收敛的条件。
+
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825164836733.png" alt="image-20250825164836733"  />
+
+### Convergence analysis
+
+示例：g(w) = tanh (w-1),对应g(w) = 0的根是$w^*$ = 1
+
+参数：$w_1 = 3,\quad a_k = \frac{1}{k},\quad \eta_k = 0$ (no noise for simplicity)
+
+由于不考虑噪声,对应的RM算法就可表示为：$w_{k+1} = w_k - a_kg(w_k)$ ，迭代结果如下，$w_k$ 最后收敛于最优解$w^* = 1$ 
+
+![image-20250825170016796](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825170016796.png)
+
+#### 针对上述示例的严谨收敛性定理：（1梯度要求 2系数要求 3测量误差要求）
+
+在Robbins-Monro algorithm中，若
+$$
+\begin{split}
+& 1. o<c_1\leq \nabla_w g(w) \leq c_2 \ \ for\ \ all \ \ w\\
+& 2. \sum_{k=1}^{\infty}a_k = \infty \ \ and \ \ \sum_{k=1}^{\infty}a_k^2 < \infty \\
+& 3. E[\eta_k|H_k] = 0 \ \ and\ \ E[\eta_k^2|H_k]<\infty \qquad H_k = w_k.w_{k-1} \ldots
+\end{split}
+$$
+
+#### 满足上述条件时，$w_k$  收敛概率为1。w是涉及随机变量采样的，所以其收敛不是常规意义上的收敛而是概率意义上的收敛，才会有probability =1 
+
+条件1说明g(w)的梯度为正有界，则g为单调递增，可以推断出其g(w) = 0 的根为存在且唯一的。
+
+条件2说明学习律$a_k$ 在$k \rightarrow \infty$ 时收敛于0（平方收敛为0），但又不会收敛太快（和发散）。
+
+条件三说明扰动是无偏干扰（即长期来看扰动会相互抵消（期望为0）），且波动幅度不会太大以至影响策略更新（条件方差有限）
+
+#### 具体解释条件2：
+
+#### 
+
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151517508.png" alt="image-20250825151517508" style="zoom: 50%;" />
+
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151711542.png" alt="image-20250825151711542" style="zoom: 50%;" />
+
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151903330.png" alt="image-20250825151903330" style="zoom:33%;" />
+
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152008043.png" alt="image-20250825152008043" style="zoom:33%;" />
+
+### Application to  mean estimation
+
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152114654.png" alt="image-20250825152114654" style="zoom:33%;" />
+
+![image-20250825152406019](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152406019.png)
+
+## 3. Stochastic gradient descent
+
+### Algorithm description
+
+###  Examples and application
+
+### Convergence analysis
+
+### Convergence pattern
+
+### A deterministic formulation
+
+## 4. BGD, MBGD,  and SGD
+
+## 5. Summary

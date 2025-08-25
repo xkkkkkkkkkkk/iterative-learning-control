@@ -1,3 +1,5 @@
+
+
 # Lecture Ⅴ Monte Carlo Learning
 
 ## 1. Motivating  example
@@ -175,7 +177,7 @@ greedy  policy属于deterministic，soft  policy属于stochastic
 $$
 \pi(a|s) = \begin{cases} 1-\frac{\epsilon}{\vert A(s) - 1 \vert}(\vert A(s)\vert - 1 )\qquad{for\ the\ greedy \ action}
 \\
-\frac{\epsilon}{\vert A(s)\vert} \qquad\qquad\qquad\quad\qquad{for\ the\ other\ |A(s)|-1\ actions)} \end{cases}
+\frac{\epsilon}{\vert A(s)\vert} \qquad\qquad\qquad\quad\qquad{for\ the\ other\ |A(s)|-1\ actions)} \end{cases}
 $$
 
 其中$\epsilon \in [0,1]$,    |A(s)|是状态s对应action的数量。
@@ -192,8 +194,49 @@ $$
 
 ### MC $\epsilon$ -Greedy algorithm
 
-![image-20250822164105649](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250822164105649.png)
+将$\epsilon-greedy $ 嵌套进MC-based algorithm中
+$$
+\pi_{k+1}(s)= arg\underset{\pi \in \prod _\epsilon}{max}\sum_a{\pi(a|s)q_{\pi_k}(s,a)}
+\\其中\underset {\epsilon} {\prod} 代表所有\epsilon-greedy 策略的集合
+$$
+最优策略如下
+$$
+\pi_{k+1}(a|s)=
+\begin{cases}
+1-\frac{\vert A(s)\vert -1}{\vert A(s\vert)}\epsilon \qquad{a=A_k^*}
+\\ \frac{1} {\vert A(s)\vert}\epsilon \qquad \qquad \ \ \  a \neq a_k^*
+ \end{cases}
+$$
+MC ε-greedy 与MC Exploring Starts除了在policies上不同其余没有区别，ε-greedy仍需要便利所有的s-t对，只不过是以不同的方式（足够长的episodes＋ε-greedy policy）
 
-![image-20250822164116834](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250822164116834.png) 
+### 伪代码
+
+For each episode ,do 
+
+​		Episode generation: 随机选取一个初始的s-t对$(s_0,a_0)$ ，遵循当前policy，运行得到长度为T的episode：$s_0,a_0,r_0,\ldots ,s_{T-1},a_{T-1},r_{T-1}$ 
+
+​		PE and PI:
+
+​		初始化discounted return： g$\leftarrow$ 0,==逆序计算== 
+
+​		For each step of episode,t = T-1,T-2,$\ldots$ 0,do
+
+​				$g \leftarrow \gamma g + r_{t+1}$
+
+​				Use every-visit method 
+
+​						$Returns(s_t,a_t) \leftarrow Returns(s_t,a_t)+g$
+
+​						$q(s_t,a_t) = average(Returns(s_t,a_t))
+
+​						令$a^* = arg\ \underset{a}{max} q(s_t,a)$ and
+
+​						$\pi(a|s_t) = \begin{cases} 1-\frac{\vert A(s_t)\vert -1}{\vert A(s_t)\vert }\epsilon \qquad a = a^*  \\ \frac{1}{\vert A(s_t)\vert \epsilon}  \qquad \qquad \ \ \  a\neq q^* \end{cases} $    
 
 防止浪费，用every'-visit
+
+#### 对比greedy policies
+
+优点：有更强的探索意向，不需要exploring starts了
+
+缺点：得到的策略不是全局最优的（可以证明的是总存在 greedy policy是最优策略）
