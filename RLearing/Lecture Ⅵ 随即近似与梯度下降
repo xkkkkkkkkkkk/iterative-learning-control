@@ -29,11 +29,11 @@ w_{k+1} = w_k - \frac{1}{k}(w_k -x_k)
 $$
 该算法的优点在于得到样本后立刻可以得到估计的均值，得到的均值也可以即刻用于其他目的。该估计值在开始阶段会因为缺乏充足的样本数量而不准确（$w_k \neq E[X]$） 但是有总比没有好，随着获取更多样本，估计值最后会收敛于E[X]。
 
-#### 考虑一种更通用形式的算法 $w_{k+1} = w_k - \alpha_k(w_k -x_k)$  ,其中$\frac{1}{k}$ 被替换成了$\alpha_k > 0$ 
+#### ==(mean estimation)==考虑一种更通用形式的算法 $w_{k+1} = w_k - \alpha_k(w_k -x_k)$  ,其中$\frac{1}{k}$ 被替换成了$\alpha_k > 0$ 
 
 当$\alpha_k$ 满足一些‘mild condition’，该算法最后仍然会收敛于E[X]
 
-该算法是一种特殊的随机近似算法也是一种特殊的随机梯度下降算法
+该算法是一种特殊的随机近似算法也是一种特殊的随机梯度下降算法 
 
 ## 2. Robbins-Monro algorithm
 
@@ -100,6 +100,18 @@ $$
 
 #### 具体解释条件2：
 
+条件2.1 $\sum_{k=1}^{\infty}a_k^2 < \infty $ ：因为$w_{k+1}-w_k = -a_k\tilde{g}(w_k,T_k)$ 。如果$a_k \rightarrow 0$ 则$a_k\tilde{g}(w_k,T_k) \rightarrow 0 $ 则由此得出 $w_{k+1} - w_k \rightarrow 0$ 
+
+
+
+条件2.2$\sum_{k=1}^{\infty}a_k = \infty$  :将$w_2 = w_1 - a_1\tilde{g}(w_1,\eta_1)$ ,$w_3 = w_2 - a_2\tilde{g}(w_2,\eta_2) \ldots$,$w_{k+1} = w_k - a_k\tilde{g}(w_k,\eta_1)$ 相加得到
+$$
+w_\infty - w_1 = -\sum_{k=1}^\infty{a_k \tilde{g}(w_k,\eta_k)}
+$$
+假设$w_\infty = w^*$ ，若 $\sum_{k=1}^{\infty}a_k^2 < \infty $ ，则$\sum_{k=1}^\infty{a_k \tilde{g}(w_k,\eta_k)}$ 可能有界，此时若$w_1$ 的初始假设值设置的与$w^*$ 太远，可能会不满足等式，故条件2.2 旨在保证初始值$w_1$ 随便选取。
+
+#### ==注意==$a_k$ 的选取通常选择很小的常数，以上三个条件不满足任意一个，$w_k$ 都有可能不收敛.
+
 #### 
 
 <img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151517508.png" alt="image-20250825151517508" style="zoom: 50%;" />
@@ -112,6 +124,16 @@ $$
 
 ### Application to  mean estimation
 
+考虑函数$g(w) = w - E[X]$ ,目标是求解g(w) = 0.求解后即可得出近似E[X]的w。但由于E[X]无法直接得到，所以通过观测采样得到下式，$\tilde{g}(w,x) = w-x $ .带有扰动版本的公式可以表示为
+$$
+\begin{split}
+\tilde{g}(w,\eta) &=w-x = w-x +E[x] - E[X] \\
+				  &=(w - E[X]) + (E[X] - x) \\
+				  &=g(w) + \eta
+\end{split}
+$$
+对应的RM算法就是$ w_{k+1} = w_k - \alpha_k \tilde{g}(w_k, \eta_k) = w_k - \alpha_k(w_k-x_k)$ 
+
 <img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152114654.png" alt="image-20250825152114654" style="zoom:33%;" />
 
 ![image-20250825152406019](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152406019.png)
@@ -120,13 +142,127 @@ $$
 
 ### Algorithm description
 
+假定要解决一个优化问题     $\underset{w}{min} J(w) = E[f(w,X)]$    ,w是需要优化的参数，x是随机变量。解决该问题有三种方法
+
+因为此处的优化问题是要最小化目标函数，所以用梯度下降。反之最大化的话就用梯度上升。
+
+#### 法1：gradient descent（GD）
+
+缺点：其中对于梯度的期望需要通过模型得到，当没有模型时，法1无法使用。
+$$
+w_{k+1} = w_k - \underbrace{\alpha}_{步长/学习率} \nabla_w E[\underbrace {f(w_k,X)}_{J(w)}] = w_k - \alpha E[\nabla_w f(w_k,X)]
+$$
+
+#### 法2：batch gradient descent（BGD）
+
+将法1中需要模型求得的梯度期望，通过采样值来逼近得到。
+
+缺点：每一次更新$w_k$ 时，都需要采样很多次。
+$$
+\begin{split}
+& E[\nabla_w f(w_k,X)] \approx \frac{1}{n}\sum_{i=1}^N {\nabla_w f(w_k,x_i)}\\
+& w_{k+1} = w_k -\alpha_k \frac{1}{n}\sum_{i=1}^n \nabla_wf(w_k,x_i)
+\end{split}
+$$
+
+#### 法3： stochastic  gradient  descent（SGD）
+
+相比于gradient descent，将true gradient（真实梯度）替换为了随机梯度，（之所以叫随机梯度，是因为里面包含随即采样的$x_k$ ）
+
+相比于 batch gradient descent相比，相当于==将n设为了1== 
+$$
+w_{k+1} = w_k - \alpha_k \nabla_w f(w_k,x_k)
+$$
+
 ###  Examples and application
+
+example： $\underset{w}{min}\quad J(w) = E[f(w,X)] = E[\frac{1}{2}\vert\vert w-X \vert\vert^2]$  
+
+则 $f(w,X) = ||w-X||^2 \qquad \nabla_w f(w,X) = w-X$ 
+
+此时求解优化问题时即求解梯度为0问题，$\nabla_w f(w,X) = w-X= 0$  则对应的解w = X,即$w^* = E[X]$ 
+
+对应的BGD求解公式为：$w_{k+1} = w_k - \alpha_k \frac{1}{n}\sum_{i=1}^{n}w_k-x_i$ 
+
+对应的SGD求解公式为：$w_{k+1} = w_k - \alpha_k (w_k-x_k)$   
 
 ### Convergence analysis
 
-### Convergence pattern
+从GD到SGD
+$$
+\begin{split}
+GD:\qquad & w_{k+1} = w_k - \alpha_k \overbrace{E[\nabla_w f(w_k,X)]}^{true\ gradient}
+\\ \downarrow \\
+SGD:\qquad & w_{k+1} = w_k - \alpha_k \underbrace{\nabla_w f（w_k,x_k）}_{stochastic\ gradient}
+\end{split}
+$$
+则stochastic gradient可以用true gradient表示为
+$$
+\nabla_w f（w_k,x_k） = E[\nabla_w f(w_k,X)] +\underbrace{\nabla_w f（w_k,x_k） - E[\nabla_w f(w_k,X)]}_{\eta}
+$$
+因此$\nabla_w f（w_k,x_k） \neq E[\nabla_w f(w_k,X)]$ 
+
+#### 接下来证明SGD是一个特殊的RM算法，以此证明其收敛性
+
+SGD的目的是为了最小化函数$J(w) = E[f(w,X)]$ , 该问题可以转换为一个方程求解问题$\nabla_w J(w) = E[\nabla_w f(w,X)] = 0$ 
+
+令$g(w) = \nabla_w J(w) = E[\nabla_w f(w,X)] $ ,则SGD就变成了求解g(w) = 0 的问题，即RM算法的求解问题。
+
+由于g(w)未知，故采用测量值$\tilde{g}(w,\eta)$进行代替
+$$
+\begin{split}
+\tilde{g}(w,\eta) &=\nabla_w f（w_k,x_k）\\
+				  &= \underbrace{E[\nabla_w f(w_k,X)]}_{g(w)} +\underbrace{\nabla_w f（w_k,x_k） - E[\nabla_w f(w_k,X)]}_{\eta}
+				  \end{split}
+$$
+所以，RM算法对于 g(w) = 0的解为
+$$
+w_{k+1} = w_k = \alpha_k \nabla{g}(w_,,\eta_k) = w_k -\alpha_k\nabla_w f(w_k,x_k)
+$$
+所以，同RM算法一样，SGD算法满足一些条件后也具有收敛性
+$$
+\begin{split}
+& 0<c_1\leq\nabla_w^2f(w,X)\leq c_2 \\
+& \sum_{k=1}^\infty a_k = \infty \quad and \quad \sum_{k=1}^\infty a_k^2 < \infty\\
+& [x_k]_{k=1}^\infty 独立同分布
+\end{split}
+$$
+==Rm算法中，针对g(w) = 0的条件一是g(w)的梯度；SGD算法中，g(w)等于f（w，X）的梯度，所以条件一就是f（w，X）的二次梯度==
+
+满足以上三个条件能保证SGD算法是收敛的。
+
+### Convergence pattern 
+
+①SGD算法用stochastic gradient 代替了true gradient，stochastic gradient是有随机性的，那么SGD的收敛性会不会受其随机性影响?
+
+引入相对误差$\delta_k = \frac{\nabla_wf(w_k,x_k)-E[\nabla_wf(w_k,X)]}{E[\nabla_wf(w_k,X)]}$   ,又因为$w = w^* 时$ ,$E[\nabla_wf(w^*,X)] = 0$ ,所以可将相对误差进行改写
+$$
+\begin{split}\\
+\delta_k &= \frac{|\nabla_wf(w_k,x_k)-E[\nabla_wf(w_k,X)]|}{E[\nabla_wf(w_k,X)]-\nabla_wf(w^*,X)}\\
+.\\
+		 &= \frac{|\nabla_wf(w_k,x_k)-E[\nabla_wf(w_k,X)]|}{E[\nabla_w^2f(\tilde{w_k},X)(w_k - w^*)]}
+		 \end{split}
+$$
+假设$\nabla_w^2 f \geq c >0$ ,对于任意的w，X,c都是一个正有界值。那么相对误差的分母项可以改写为
+$$
+\begin{split}
+\left|E[\nabla_w^2f(\tilde{w_k},X)(w_k - w^*)]\right|& =\left|E[\nabla_w^2f(\tilde{w_k},X)]\ (w_k - w^*)\right|\\
+.\\
+& =\left|E[\nabla_w^2f(\tilde{w_k},X)] \right|\ \left|(w_k - w^*)\right| \geq c\left|(w_k - w^*)\right| \\
+即\\
+.\\
+& \delta_k \leq \frac{| \overbrace {\nabla_wf(w_k,x_k)}^{stochastic\ gradient} - \overbrace{ E[\nabla_wf(w_k,X)]}^{true\ gradient}|}{c\left|(w_k - w^*)\right|}
+\end{split}
+$$
+ 由此式可知，当$w_k$ 与$w_k$相距很远时，相对误差分母过大，此时误差较小（受随机性影响很小）。当$w_k$ 与$w_k$ 相距很近时，此时相对误差才会受到随机性的影响。即在收敛开始过程中stochastic gradient的随机性的影响不大，依旧会快速收敛。
+
+
 
 ### A deterministic formulation
+
+#### 解释SGD这样做的原因：
+
+随机梯度下降在每一个w迭代都随机一个x用来求解，本质上等同于在BGD算法的batch=1时的情况，即每次只能取出一个采样点作为batch。又由于理论上{x}序列中的采样都是独立同分布的，故其概率分布为均匀分布，所以此时选取采样的方法就变成了从{xi}序列中，以均匀分布的概率进行随机抽取。
 
 ## 4. BGD, MBGD,  and SGD
 
