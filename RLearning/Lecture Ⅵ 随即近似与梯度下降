@@ -112,16 +112,6 @@ $$
 
 #### ==注意==$a_k$ 的选取通常选择很小的常数，以上三个条件不满足任意一个，$w_k$ 都有可能不收敛.
 
-#### 
-
-<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151517508.png" alt="image-20250825151517508" style="zoom: 50%;" />
-
-<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151711542.png" alt="image-20250825151711542" style="zoom: 50%;" />
-
-<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825151903330.png" alt="image-20250825151903330" style="zoom:33%;" />
-
-<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152008043.png" alt="image-20250825152008043" style="zoom:33%;" />
-
 ### Application to  mean estimation
 
 考虑函数$g(w) = w - E[X]$ ,目标是求解g(w) = 0.求解后即可得出近似E[X]的w。但由于E[X]无法直接得到，所以通过观测采样得到下式，$\tilde{g}(w,x) = w-x $ .带有扰动版本的公式可以表示为
@@ -133,10 +123,6 @@ $$
 \end{split}
 $$
 对应的RM算法就是$ w_{k+1} = w_k - \alpha_k \tilde{g}(w_k, \eta_k) = w_k - \alpha_k(w_k-x_k)$ 
-
-<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152114654.png" alt="image-20250825152114654" style="zoom:33%;" />
-
-![image-20250825152406019](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250825152406019.png)
 
 ## 3. Stochastic gradient descent
 
@@ -266,4 +252,45 @@ $$
 
 ## 4. BGD, MBGD,  and SGD
 
+背景：优化函数$J(w) = E[f(w,X)]$ ,{$x_i$}$_{i=1}^n$ 为X的采样。则BGD、MBGD、SGD求解公式如下
+$$
+\begin{split}
+BGD:\quad & w_{k+1} = w_k - \alpha_k \frac{1}{n}\sum_{i=1}^n\nabla_wf(w_k,x_i)\\
+MBGD:\quad & w_{k+1} = w_k - \alpha_k \frac{1}{m}\sum_{j\in \Iota_k}\nabla_wf(w_k,x_j)\\
+SGD:\quad & w_{k+1} = w_k - \alpha_k \nabla_wf(w_k,x_k)
+\end{split}
+$$
+BGD算法中，所有的采样在每一次迭代都被使用，当采样数n足够大时，其stochastic gradient十分接近true gradient
+
+MBGD算法中，其采样点集合是从所有的n个采样点中随机抽取m个，其包含了m次独立同分布的采样
+
+SGD算法中，每次迭代的唯一采样点是从n个采样点的序列中随机抽取的
+
+#### SGD和BGD算是特殊的MBGD，当MBGD的batch数m=1时，MBGD就变成了SGD；
+
+#### ==但m=n时，MBGD跟BGD也不完全相同==，此时的MBGD也是从采样点序列中随机抽取n次，不一定能将所有采样点用到。
+
+相比于SGD，MBGD有着更少的随机性，因为其使用了更多的采样；
+
+相比于BGD，MBGD有着更高的效率以及灵活性，因为其在每次迭代不需要将全部采样点用到。
+
 ## 5. Summary
+
+#### Mean estimation:使用 {$x_k$} 计算E[X]
+
+$$
+w_{k+1} = w_k - \frac{1}{k}(w_k-x_k)
+$$
+
+#### RM algorithm:利用噪音观测值  {}$\tilde{g}(w_k,\eta_k)$}  求解g(w) = 0问题
+
+$$
+w_{k+1} = w_k - \alpha_k \tilde{g}(w_k,\eta_k)
+$$
+
+#### SGD algorithm:利用{$\nabla_wf(w_k,x_K)$}求解J(w)=E[f(w,X)]的最小优化问题
+
+$$
+w_{k+1} = w_k - \alpha_k\nabla_wf(w_k,x_k)
+$$
+
