@@ -2,11 +2,11 @@
 
 ## 1. Motivating examples
 
-![image-20250827093713473](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250827093713473.png)
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250827093713473.png" alt="image-20250827093713473" style="zoom:80%;" />
 
-![image-20250827093823428](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250827093823428.png)
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250827093823428.png" alt="image-20250827093823428" style="zoom:80%;" />
 
-![image-20250827093931845](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250827093931845.png)
+<img src="D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250827093931845.png" alt="image-20250827093931845" style="zoom:80%;" />
 
 ## 2. TD learning of state values
 
