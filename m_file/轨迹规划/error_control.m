@@ -1,3 +1,5 @@
+%% 误差检查
+
 function [max_err, avg_err] = error_control(bspline, Q_ori, delta_u)
 % bspline:拟合的b样条
 % Q_ori：原始的型值点集

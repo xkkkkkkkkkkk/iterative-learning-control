@@ -1,6 +1,9 @@
 %% 图像读取
 
-img = imread('butterfly.png');
+function Q_real = extract_boundary(image_path)
+
+% img = imread(image_path);
+img = imread('half_butterfly.png');
 gray_img = rgb2gray(img);
 bw_img = imbinarize(gray_img);
 bw_img = imcomplement(bw_img); % 反相确保轨迹为白色
@@ -29,9 +32,10 @@ for i = 1:length(Q_real)-1
     line_segment = [line_segment;segment];
 end
 
-figure;
-imshow(skeleton);
-title('单像素宽轨迹');
+%% 滑动滤波，避免随机抖动导致凹凸性判断崩溃
+window_size = 5;
+Q_real = movmean(Q_real,window_size);
+
 figure;
 plot(Q_real(:,1),Q_real(:,2),'r.-');
 title('原始轨迹点集');
