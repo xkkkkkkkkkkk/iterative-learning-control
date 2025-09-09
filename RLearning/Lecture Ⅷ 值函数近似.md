@@ -172,6 +172,10 @@ $$
 
 ## 3. Sarsa with function approximation
 
+$$
+w_{t+1} = w_t + \alpha_t[r_{t+1} + \gamma \hat{q}(s_{t+1},a_{t+1},w_t) - \hat{q}(s_t,a_t,w_t)\triangledown_w\hat{q}(s_t,a_t,w_t
+$$
+
 
 
 ## 4. Q-learning with function approximation
