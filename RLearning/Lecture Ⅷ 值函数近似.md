@@ -173,19 +173,108 @@ $$
 ## 3. Sarsa with function approximation
 
 $$
-w_{t+1} = w_t + \alpha_t[r_{t+1} + \gamma \hat{q}(s_{t+1},a_{t+1},w_t) - \hat{q}(s_t,a_t,w_t)\triangledown_w\hat{q}(s_t,a_t,w_t
+w_{t+1} = w_t + \alpha_t[r_{t+1} + \gamma \hat{q}(s_{t+1},a_{t+1},w_t) - \hat{q}(s_t,a_t,w_t)\triangledown_w\hat{q}(s_t,a_t,w_t)
+$$
+
+伪代码：
+目的：寻找到一个policy可以让agent从特定的s-a对到达target
+
+For  each  episode,  do
+	If  the current $s_t$ is not the target , do
+    	Take action $a_t$ following $\pi_t(s_t)$ ,generate $r_{t+1}\ ,\ s_{t+1}$ ,then take action $a_{t+1}$ following $\pi_t(s_{t+1})$
+		==Value update(parameter upddate)==
+$$
+w_{t+1} = w_t + \alpha_t[e_{t+1} + \gamma \hat{q}(s_{t+1},a_{t+1},w_t) - \hat{q}(s_t,a_t,w_t)]\triangledown_w\hat{q}(s_t,a_t,w_t)
+$$
+​		==Policy update==
+$$
+\pi_{t+1}(a|s_t) = 1 - \frac{\epsilon}{A(s)}(|A(s| - 1 ) \tag{if a = arg $max_{a\in A(s_t)}$ $\hat{q}(s_t,a_t,w_{t+1})$}\\
+$$
+
+$$
+\pi_{t+1}(a|s_t) = \frac{\epsilon}{A(s)} \tag{otherwise}
 $$
 
 
 
 ## 4. Q-learning with function approximation
 
+定义：
+$$
+w_{t+1} = w_t + \alpha_t[e_{t+1} + \gamma \underset{a\in A(s_{t+1})}{max} \hat{q}(s_{t+1},a,w_t) - \hat{q}(s_t,a_t,w_t)]\triangledown_w\hat{q}(s_t,a_t,w_t)
+$$
+伪代码：
+
+For  each  episode,  do
+	If  the current $s_t$ is not the target , do
+    	Take action $a_t$ following $\pi_t(s_t)$ ,generate $r_{t+1}\ ,\ s_{t+1}$ ,then take action $a_{t+1}$ following $\pi_t(s_{t+1})$
+		==Value update(parameter upddate)==
+$$
+w_{t+1} = w_t + \alpha_t[e_{t+1} + \gamma \underset{a\in A(s_{t+1})}{max} \hat{q}(s_{t+1},a_{t+1},w_t) - \hat{q}(s_t,a_t,w_t)]\triangledown_w\hat{q}(s_t,a_t,w_t)
+$$
+​		==Policy update==
+$$
+\pi_{t+1}(a|s_t) = 1 - \frac{\epsilon}{A(s)}(|A(s| - 1 ) \tag{if a = arg $max_{a\in A(s_t)}$ $\hat{q}(s_t,a_t,w_{t+1})$}\\
+$$
+
+$$
+\pi_{t+1}(a|s_t) = \frac{\epsilon}{A(s)} \tag{otherwise}
+$$
+
+
+
 ## 5. Deep Q-learning 
 
 ###  basic idea
 
-###  experience replay
+deep Q-learning 又叫 Deep Q-network（DQN），是最早的成功将深度神经网络引入强化学习的方法。其中的神经网络充当非线性函数approximator的作用
+
+DQN的目的是最小化目标函数/损失函数(令其为0)，目标函数如下（其实就是q-learning的TD  target）
+$$
+J(w) = E\big[ (R + \gamma \underset{a\in A(S')}{max} \hat{q}(S',a,w) - \hat{q}(S,A,w))^2 \big]\\
+其中（S，A，R，S'）是随机变量
+$$
+这其实就是贝尔曼最优误差，因为$q(s,a) = E\big[ (R_{t+1} + \gamma \underset{a\in A(S')}{max} \hat{q}(S_{t+1},a) | S_t = s,A_t = a \big]\qquad\forall s,a$  
+
+如何最小化目标函数呢？——梯度下降
+
+但目标函数为w的函数，针对w的梯度，函数中有两个，一个出现在$\hat{q}(s,a,w)$,另一个出现在$y= R + \gamma \underset{a\in A(S')}{max} \hat{q}(S',a,w)$
+为了计算的简洁，计算梯度时暂且把y中的w视为常数
+
+具体的，在目标函数中引入两个网络main network——$\hat{q}(S,A,w)$ 和 target network——$\hat{q}(s,a,w_T)$
+此时目标函数就可以简化为
+$$
+J(w) = E\big[ (R + \gamma \underset{a\in A(S')}{max} \hat{q}(S',a,w_T) - \hat{q}(S,A,w))^2 \big]
+$$
+其中$w_T$是target network的参数，暂且视为常数。
+
+当$w_T$为定值时，目标函数J的梯度可以很容易的表述出来
+$$
+\triangledown_wJ = E\big[ (R + \gamma \underset{a\in A(S')}{max} \hat{q}(S',a,w_T) - \hat{q}(S,A,w))^2 \ \triangledown_w \hat{q} (S,A,w)\big]
+$$
+
+#### DQN中存在一些技巧值得关注。
+
+==技巧一：两个网络，main 和 target==
+实现细节：令w和$w_T$初始值相同，在每次迭代时，从replay buffer中选取一个小批次的采样{($s,a,r,s'$)}。main网络的输入就是s和a，目标输出是$y_T = r + \gamma \underset{a\in A(S')}{max} \hat{q}(S',a,w)$  
+相当于为了最小化目标函数，让包含变量的网络main去逼近网络target，随后每隔一段时间就更新网络target（令$w_T = w $），循环往复，直到目标函数收敛为0.
+
+==技巧二：experience replay经验回放==
+在收集到经验采样后，我们不按照收集到的顺序使用这些采样。反之先将采样存在一个集合，称为replay buffer  $B = {(s,a,r,s')}$ 
+随后在每次训练神经网络时，都从replay buffer中拿取一个小批次的采样。
+这种采样的抽取方式，被称为经验回放，须遵守均匀分布。因为==在没有先验知识（哪个s-a更重要）的时候，就要一视同仁。== 
+这些sample在采集过程中是按照某些确定的策略生成的，为了打破后续样本的关联性，就可以使用经验回放从buffer中均匀选取。
 
 ###  implementation and example
 
-## 6. Summary
+伪代码：（此处用的是off policy）
+目的：通过由策略$\pi_b$生成的经验样本学习一个最优的target network用来逼近最优的action value
+将由策略生成的经验样本存储进replay buffer ——B中。
+
+​	For each iteration,do
+​		从B中均匀采样一个mini-batch
+​		For each sample(s,a,r,s'),计算其target value 为 $y_T = r + \gamma \underset{a\in A(S')}{max} \hat{q}(s',a,w_T)$  ,其中$w_T$是target network 的不变参数 
+​		用mini-batch {(s,a,yT)}来更新main network以最小化目标函数J（w）、
+
+​	每隔c轮迭代，令$w_T = w$  
+
