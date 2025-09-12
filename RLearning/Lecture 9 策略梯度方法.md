@@ -57,7 +57,7 @@ $$
 简单的方式为，将所有状态都视为同样重要，此时$d_0(s) = \frac{1}{|S|}$ 
 
 另一种重要情况是只针对特定状态$s_0$ 。例如，某些任务总是从相同的状态$s_0$ 开始。
-此时，$d_0（s_0） = 1 \qquad d_0(s\neq s_0) = 0
+此时，$d_0（s_0） = 1 \qquad d_0(s\neq s_0) = 0$
 
 #### 2. 权重d与策略$\pi$ 相关
 
@@ -204,11 +204,17 @@ A的采样是服从于策略$\pi(A|S,\theta)$的，因此，$a_t$应该是在遵
 
 ![image-20250911162722362](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250911162722362.png)
 
-![image-20250911163138752](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250911163138752.png)
+#### 伪代码
 
-![image-20250911163153586](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250911163153586.png)
+初始化：参数化函数$\pi(a|s,\theta)$ ,$\gamma \in (0,1)$ , $\alpha > 0$ . 
+目的：寻找能最大化目标函数J的策略
+
+For the $k$th iteration, do
+	选择状态 $s_0$ 并遵循策略 $\pi(\theta_k)$  计算出一个episode，假设episode 为 {$s_0,a_0,r_1,\ldots,s_{T-1},r_T$} 
+	For t = 0,1,...,T-1, do
+		Value update : $q_t(s_t,a_t) = \sum_{k=t+1}^T \gamma^{k-t-1}r_k$ 
+		Policy update : $\theta_{t+1} = \theta_t + \alpha\triangledown_{\theta} ln\pi(a_t|,s_t,\theta_t)q_t(s_t,a_t)$  
+	$\theta_k = \theta_T$ 
 
 没有立刻用新数据采集，因为蒙特卡洛是offline的，需要跑完episode才能更新
-
-## 5. Summary
 
