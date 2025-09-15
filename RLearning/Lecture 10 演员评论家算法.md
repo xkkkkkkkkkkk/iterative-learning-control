@@ -1,3 +1,5 @@
+
+
 # Lecture Ⅹ Actor-Critic Method
 
 ## 1. The  simplest actor- critic(QAC)
@@ -46,25 +48,107 @@ E_{S \sim \eta,A\sim \pi}[\triangledown_\theta ln\pi(A|S,\theta_t)b(S)] &= \sum_
 \end{split}
 $$
 
+**虽然b(S)不影响E[X],但是会影响方差va(X)**。如下式，当b很大时，方差受影响也很大。
+$$
+tr[var(X)] = E[X^tX] - \bar{x}^T\bar{x}
+\\
+\begin{split}
+E[X^TX] &= E[(\triangledown_\theta ln\pi)^T(\triangledown_\theta ln\pi)(q(S,A) - b(s))^2]
+\\
+&= E[||\triangledown_\theta ln\pi||^2(q(S,A) - b(s))^2]
+\end{split}
+$$
+目标：找到一个最优偏差b以最小化方差var(X)
+优点：用随机采样来逼近E[X]，估计的误差也会很小
+在REINFORCE和QAC中，没有偏差b存在，或者说b=0，者不能保证是一个好的偏差。
 
-![image-20250912162847758](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912162847758.png)
-
-![image-20250912163035933](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912163035933.png)
-
-![image-20250912163216155](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912163216155.png)
+对于任意s来说，能够最小化方差的最优偏差b为
+$$
+b^*(s) = \frac{E_{A\sim\pi}[||\triangledown_\theta ln\pi(A|s,\theta_t)||^2q(s,A)]}{E_{A\sim\pi}[||\triangledown_\theta ln\pi(A|s,\theta_t)||^2}
+$$
+虽然这个偏差b是最优的，但是计算过于复杂，所以实际中通常将$||\triangledown_\theta ln\pi(A|s,\theta_t)||^2$ 去掉，选择次优的偏差b,这也是s的state value
+$$
+b(s) = E_{A\sim \pi}[q(s,A)] = v_\pi(s)
+$$
 
 ### The algorithm of advantage actor-critic
 
-![image-20250912163456134](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912163456134.png)
+梯度上升算法为==（也被叫做优势函数）==
+$$
+\begin{split}
+\theta_{t+1} &= \theta_t + \alpha E\big[\triangledown_\theta ln\pi(A|S,\theta_t)[q_\pi(S,A)-v_\pi(S)]\big]
+\\
+&= \theta_t + \alpha E\big[\triangledown_\theta ln\pi(A|S,\theta_t)\delta_\pi(S,A) \big]
+\end{split}
+\\
+其中
+\\
+\delta_\pi(S,A) = q_\pi(S,A) - v_\pi(S)
+$$
+此外，算法还可以表述为另外格式.令步长与相对值δ成正比，而不是绝对值q成正比更合理。该算法仍可以平衡探索与利用。
+$$
+\begin{split}
+\theta_{t+1} &= \theta_t +\alpha \triangledown_\theta ln \pi(a_t|s_t, \theta_t) \delta_t(s_t,a_t)
+\\
+&=\theta_t +\alpha \frac{\triangledown_\theta  \pi(a_t|s_t, \theta_t)}{\pi(a_t|s_t, \theta_t)} \delta_t(s_t,a_t)
+\\
+&= \theta_t +\alpha \underbrace{\Big(\frac{\delta_t(s_t,a_t)}{\pi(a_t|s_t, \theta_t)}\Big)} _{step \ size}\triangledown_\theta  \pi(a_t|s_t, \theta_t)
+\end{split}
+$$
+此外，优势函数还可以由TD 误差进行逼近
+优点：只需要一个网络就可以逼近$v_\pi(s)$，而不需要两个网络去计算$q_\pi(s,a)$ 和 $v_\pi(s)$ 
+$$
+\delta_t = q_t(s_t,a_t) - v_t(s_t) \rightarrow r_{t+1} + \gamma v_t(s_{t+1}) - v_t(s_t)
+$$
 
-![image-20250912163707898](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912163707898.png)
+#### 伪代码：
 
-![image-20250912163845586](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912163845586.png)
-
-![image-20250912163908530](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250912163908530.png)
-
-
+目标：找到优化J(θ)的最优策略
+At time step t in each episode , do
+		通过策略$\pi(a|s_t,\theta_t)$生成action $a_t$ ，遵循action得到 $r_{t+1}, s_{t+1}$。
+		TD error(advantage function)
+				$\delta_t = r_{t+1} + \gamma v_t(s_{t+1},w_t) - v_t(s_t,w_t)$
+		Critic(value update)
+				$w_{t+1} = w_t + \alpha_w\delta_t\triangledown_wv(s_t,w_t)$
+		Actoe(policy update)
+				$\theta_{t+1} = \theta_t + \alpha_\theta\delta_t\triangledown_\theta ln\pi(a_t|s_t,\theta_t)$ 
+**该方法为on-policy，因为策略$\pi(\theta_t)$ 为随机的，不需要再另外使用ε- greedy等策略。**
 
 ## 3. Off-policy actor-critic
+
+#### 重要性采样
+
+off-policy 决定了采样和逼近的策略不一样，对应的采样服从的分布为采样策略的分布，应用到逼近策略时本应该服从逼近策略的分布。
+
+重要性采样的目的就是为了服从$p_1$的采样x来估计服从$p_0$的期望。
+$$
+E_{X\sim p_0}[X] = \sum_x p_0(x)x = \sum_x p_1(x)\underbrace{\frac{p_0(x)}{p_1(x)}x}_{f(x)} = E_{X\sim p_1}[f(X)]
+$$
+经由上式，便可以经计算$ E_{X\sim p_1}[f(X)]$ 来估计$ E_{X\sim p_0}[X]$ 。对于估算$ E_{X\sim p_1}[f(X)]$，只需令
+$$
+\bar{f} = \frac{1}{n}\sum_{i=1}^nf(x_i)\qquad  其中x_i \sim p_1
+\\那么就有
+\\
+ E_{X\sim p_1}[\bar{f}] =  E_{X\sim p_1}[f(X)] 
+ \\
+ var_{X\sim p_1}[\bar{f}] = \frac{1}{n}var_{X \sim p_1}[f(X)]
+$$
+![image-20250915135028681](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135028681.png)
+
+![image-20250915135228232](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135228232.png)
+
+
+
+![image-20250915135619145](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135619145.png)
+
+![image-20250915135715280](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135715280.png)
+
+![image-20250915135746698](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135746698.png)
+
+![image-20250915164758826](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915164758826.png)
+
+![image-20250915164945587](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915164945587.png)
+
+
 
 ## 4. Deterministic actor-critic(DPG)

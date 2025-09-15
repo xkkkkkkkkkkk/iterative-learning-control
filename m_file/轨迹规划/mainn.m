@@ -43,21 +43,21 @@ for i = 2:size(Q, 1)-1
     end
     
     % 凹凸性检测
-    cross_dot = vec1(1)*vec2(2) - vec1(2)*vec2(1); % 叉积Z分量
+    % cross_dot = vec1(1)*vec2(2) - vec1(2)*vec2(1); % 叉积Z分量
     % disp(cross_dot);
-    if i > 2
-        vec_prev = Q(i-1, :) - Q(i-2, :);
-        vec_curr = Q(i, :) - Q(i-1, :);
-        cross_prev = vec_prev(1)*vec_curr(2) - vec_prev(2)*vec_curr(1);
-        % 阈值判断，排除噪声干扰
-        if abs(cross_dot) < autu_threshold && sign(cross_prev) ~= sign(cross_dot)
-            cross_dot = - cross_dot;
-        end
-       
-        if sign(cross_prev) ~= sign(cross_dot) && sign(cross_prev) ~= 0 && sign(cross_dot) ~= 0
-            break_points = [break_points, i];
-        end
-    end
+    % if i > 2
+    %     vec_prev = Q(i-1, :) - Q(i-2, :);
+    %     vec_curr = Q(i, :) - Q(i-1, :);
+    %     cross_prev = vec_prev(1)*vec_curr(2) - vec_prev(2)*vec_curr(1);
+    %     % 阈值判断，排除噪声干扰
+    %     if abs(cross_dot) < autu_threshold && sign(cross_prev) ~= sign(cross_dot)
+    %         cross_dot = - cross_dot;
+    %     end
+    % 
+    %     if sign(cross_prev) ~= sign(cross_dot) && sign(cross_prev) ~= 0 && sign(cross_dot) ~= 0
+    %         break_points = [break_points, i];
+    %     end
+    % end
 end
 
 % 断点排序去重
@@ -96,7 +96,14 @@ for idx = 1:length(fitted_curves)
         if max_err > epsilon_allowmax
             [~, max_idx] = max(err_points);
             % 找到全局索引（需要根据曲线段确定）
-            global_idx = find(Q(:,1) == curve.points(max_idx,1) & Q(:,2) == curve.points(max_idx,2));
+            %global_idx = find(Q(:,1) == curve.points(max_idx,1) & Q(:,2) == curve.points(max_idx,2));
+            global_idx = break_points(idx) + max_idx -1;
+            if iscolumn(new_break_points);
+                new_break_points = new_break_points';
+            end
+            if iscolumn(global_idx)
+                global_idx = global_idx';
+            end
             new_break_points = [new_break_points, global_idx];
         end
     end
@@ -138,38 +145,56 @@ end
 
 %% 可视化结果
 figure;
-plot(Q(:,1), Q(:,2), 'ko-'); hold on;
+plot(Q(:,1), Q(:,2)); hold on;
 for idx = 1:length(fitted_curves)
     curve = fitted_curves{idx};
     if strcmp(curve.type, 'spline')
-        u = linspace(0,1,100);
+        % 生成B样条曲线上的点
+        u = linspace(0, 1, 100);
         pts = bspline_eval(curve.ctrl_pts, u);
-        plot(pts(:,1), pts(:,2), 'b-', 'LineWidth', 2);
+        % 绘制B样条曲线，使用蓝色实线
+        plot(pts(:,1), pts(:,2), 'b-', 'LineWidth', 2, 'DisplayName', 'B样条段');
     else
-        plot(curve.points(:,1), curve.points(:,2), 'r-', 'LineWidth', 2);
+        % 绘制直线段，使用红色实线
+        plot(curve.points(:,1), curve.points(:,2), 'r-', 'LineWidth', 2, 'DisplayName', '直线段');
     end
 end
-title('拟合结果');
-legend('原始点', 'B样条段', '直线段');
+
+% 标记断点位置（可选）
+plot(Q(break_points, 1), Q(break_points, 2), 'gs', 'MarkerSize', 8, 'MarkerFaceColor', 'g', 'DisplayName', '断点');
+
+hold off; % 释放图形
+title('B样条拟合结果');
+legend('show'); % 显示图例
 axis equal;
+xlim([min(Q(:,1))-1, max(Q(:,1))+1]);
+ylim([min(Q(:,2))-1, max(Q(:,2))+1]);
+grid on;
 
 % B样条插值拟合
 % 输入：分段型值点集
 % 输出：控制点
 function [P] = reverse_caculate(Q)
-    m = size(Q,1) - 1;
+    n = size(Q,1) - 1;
     k = 3;
-    U = linspace(0,1,m+k+2);% 先使用均匀参数化，后续再替换成累计弦长参数化
-    pts = zeros(length(u),2);
-    A = zeros(m+1, m+3);
-    for i = 0:m
-        u = i/m;
-        span = find_span(u, U, m, k);
-        N = basis_functions(span, u, U, k);
+    chord_length = sqrt(sum(diff(Q).^2, 2));
+    u = [0; cumsum(chords)] / sum(chords);
+    m = n + k +1;
+    U = [zeros(1,k); linspace(0,1,m-2*k)]; % 累计弦长参数化
+    
+    A = zeros(n+1,n+1);
+
+    for i = 0:n
+        
+        span = find_span(u(i+1), U, n, k);
+        N = basis_functions(span, u(i+1), U, k);
         for j = 0:k
             A(i+1, span-k+j+1) = N(j+1);
         end
     end
+    % 添加边界条件
+    A(1,1) = 1;
+    A(end,end) = 1;
     P = A \ Q;
 end
 
