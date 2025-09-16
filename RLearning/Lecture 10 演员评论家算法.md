@@ -21,7 +21,7 @@ At time step t in each episode,do
 
 ## 2. Advantage actor-critic(A2C)
 
-### Baseline invariance
+### ==Baseline invariance==
 
 #### 基本思想：引入偏差量对梯度无影响
 
@@ -116,7 +116,7 @@ At time step t in each episode , do
 
 ## 3. Off-policy actor-critic
 
-#### 重要性采样
+#### ==重要性采样==
 
 off-policy 决定了采样和逼近的策略不一样，对应的采样服从的分布为采样策略的分布，应用到逼近策略时本应该服从逼近策略的分布。
 
@@ -133,22 +133,111 @@ $$
  \\
  var_{X\sim p_1}[\bar{f}] = \frac{1}{n}var_{X \sim p_1}[f(X)]
 $$
-![image-20250915135028681](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135028681.png)
+因此，$\bar{f}$ 是对于$E_{X\sim p_1}=E_{X\sim p_0}[X]$ 很好的一个估计，即下式。其中$\frac{p_0(x_i)}{p_1(x_i)}$ 被称作重要性权重。
+重要性权重大于1能够突出此样本的重要性。
+$$
+E_{X\sim p_0}[X] \approx \frac{1}{n}\sum_{i=1}^nf(x_i) = \frac{1}{n}\sum_{i=1}^n\frac{p_0(x_i)}{p_1(x_i)}x_i
+$$
+重要性采样适用于，已知x后很容易求得p（x），但很难求得期望E。例如深度学习的黑盒问题，不知道p的表达式，只能给定x求得p（x）的值。
 
-![image-20250915135228232](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135228232.png)
+#### off-policy actor-critic 算法
 
+假设$\beta$ 为off-policy 中behavior policy的经验采样，目的为应用这个采样来更新target policy以优化目标函数$J(\theta) = \sum_{s\in S}d_\beta(s)v_\pi(s) = E_{S \sim d_\beta}[v_\pi(S)]$ 其中 $d_\beta$是策略$\beta$的稳态分布。
 
+此时目标函数经重要性采样优化后格式为
+$$
+\triangledown_\theta J(\theta) = E_{S \sim p , A \sim \beta}\Big[ \frac{\overbrace{\pi(A|S,\theta)}^{P_0}}{\underbrace{\beta(A|S)}_{P_1}}\triangledown_\theta ln\pi(A|S,\theta)q_\pi(S,A)  \Big]
+$$
+off-policy 的策略梯度同样也与基准偏差b(s)不相关，所以为了优化方差，通常也会加入基准偏差。（次优b(s)=$v_\pi(s)$)
+$$
+\triangledown_\theta J(\theta) = E_{S \sim p , A \sim \beta}\Big[ \frac{\overbrace{\pi(A|S,\theta)}^{P_0}}{\underbrace{\beta(A|S)}_{P_1}}\triangledown_\theta ln\pi(A|S,\theta)(q_\pi(S,A)-v_\pi(s) ) \Big]
+$$
+与之对应的梯度上升算法为
+$$
+\theta_{t+1} = \theta_t + \alpha_\theta\frac{\pi(a_t|s_t,\theta_t)}{\beta(a_t|s_t)}\triangledown_\theta ln\pi(a_t|s_t,\theta_t)(q_t(s_t,a_t)-v_t(s_t))
+$$
+同on-policy中情况，利用TD error近似
+$$
+q_t(s_t,a_t)-v_t(s_t) \approx r_{t+1} + \gamma v_t(s_{t+1}) - v_t(s_t) = \delta_t(s_t,a_t)
+\\
+且
+\\\triangledown_\theta ln\pi(a_t|s_t,\theta_t) = \frac{\triangledown_\theta \pi(a_t|s_t,\theta_t)}{\pi(a_t|s_t,\theta_t)}
+$$
+带入式中得到最终形式为
+$$
+\theta_{t+1} = \theta_t + \alpha_\theta\frac{\delta_t(s_t,a_t)}{\beta(a_t|s_t)}\triangledown_\theta \pi(a_t|s_t,\theta_t)
+$$
 
-![image-20250915135619145](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135619145.png)
+#### 伪代码
 
-![image-20250915135715280](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135715280.png)
-
-![image-20250915135746698](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915135746698.png)
-
-![image-20250915164758826](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915164758826.png)
-
-![image-20250915164945587](D:\Users\crcrisoft\AppData\Roaming\Typora\typora-user-images\image-20250915164945587.png)
+初始化：已知给定的behavior policy $\beta(a|s)$ , target policy $\pi(a|s,\theta_0)$ 中$θ_0$ 为初始参数向量，值函数$v(s,w_0)$其中$w_0$是初始参数向量
+目标：寻找能优化目标函数的最优策略。
+At the step t in each episode ,do 
+		遵循behavior policy生成$a_t$，并观察对应的$r_{t+1},s_{t+1}$
+		TD error (advantage function)
+				$\delta_t = r_{t+1} + \gamma v_t(s_{t+1},w_t) - v_t(s_t,w_t)$
+		Critic (value update)
+				$w_{t+1} = w_t + \alpha_\theta\frac{\pi(a_t|s_t,\theta_t)}{\beta(a_t|s_t)} \delta_t \triangle_w v(s_t,w_t)$ 
+		Actor(policy update)
+				$\theta_{t+1} = \theta_t + \alpha_\theta\frac{\pi(a_t|s_t,\theta_t)}{\beta(a_t|s_t)} \delta_t \triangledown_\theta ln\pi(a_t|s_t,\theta_t)$ 
 
 
 
 ## 4. Deterministic actor-critic(DPG)
+
+deterministic policy相比于 stochastic policy的区别在于对于s与a的映射。其中，$\mu$是从s到a的映射，被简写成$\mu(s)$ 
+$$
+a = \mu (s,\theta) = \mu(s)
+$$
+考虑在折扣情况下的目标函数,其中$d_0$ 为概率分布，$\sum_{s \in S}d_0(s) = 1$ 
+$$
+J(\theta) = E[v_\mu(s)] = \sum_{s \in S}d_0(s)v_\mu(s)
+$$
+当$d_0$ 的选择与$\mu$ 无关时，梯度很容易就能计算得到。**但考虑两个特殊情况**
+
+1.当每次起始状态都为同一特定状态时，此时$d_0(s_0)= 1 \quad and \quad d_0(s \neq s_0) = 0$
+2.$d_0$为behavior policy的一种稳态分布并不同于$\mu$ 
+
+### theorem of deterministic policy gradient
+
+$$
+\begin{split}
+\triangledown_\theta J(\theta) &= \sum_{s \in S}\rho_\mu(s)\triangledown_\theta\mu(s)(\triangledown_aq_\mu(s,a))|_{a=\mu(s)}
+\\
+&= E_{S \sim \rho_\mu}\big[ \triangledown_\theta\mu(S)(\triangledown_aq_\mu(S,a))|_{a = \mu(S)}   \big]
+\end{split}
+\\
+先对a求梯度，在将所有a用\mu(S)替换，梯度中再无a出现。
+$$
+
+因此，确定性梯度下降属于off-policy方法。
+
+### algorithm of deterministic  actor-critic
+
+基于策略梯度，用于优化目标函数的梯度上升算法为
+$$
+\theta_{t+1} = \theta_t + \alpha_\theta E_{S \sim \rho_\mu}[\triangledown_\theta \mu(S)(\triangledown_aq_\mu(S,a))|_{a=\mu(S)}]
+$$
+与之对应的随机梯度上升算法为
+$$
+\theta_{t+1} = \theta_t + \alpha_\theta\triangledown_\theta \mu(s_t)(\triangledown_aq_\mu(s_t,a))|_{a=\mu(s_t)}
+$$
+
+#### 伪代码
+
+初始化：已知给定的behavior policy $\beta(a|s)$ , target policy $\mu(s,\theta_0)$ 中$θ_0$ 为初始参数向量，值函数$v(s,w_0)$其中$w_0$是初始参数向量
+目标：寻找能优化目标函数的最优策略。
+At time step t in each episode ,do 
+		遵循behavior policy生成$a_t$，并观察对应的$r_{t+1},s_{t+1}$
+		TD error (advantage function)
+				$\delta_t = r_{t+1} + \gamma q(s_{t+1},\mu(s_{t+1,\theta_t},w_t) - q(s_t,a_t,w_t))$
+		Critic (value update)
+				$w_{t+1} = w_t + \alpha_w \delta_t \triangledown_w q(s_t,a_t,w_t)$ 
+		Actor(policy update)
+				$\theta_{t+1} = \theta_t + \alpha_\theta \triangledown_\theta\mu(s_t,\theta_t)(\triangledown_aq(s_t,a,w_{t+1}))|_{a = \mu(s_t)}$ 
+
+#### 备注
+
+如何选取函数来表示q(s,a,w)
+**Linear function**: q(s,a,w) = $\phi^T(s,a)w$ 其中$\phi(s,a)$为特征向量
+**Neural networks:** 深度确定性策略梯度方法（DDPG）
