@@ -1,6 +1,6 @@
-X = 50;    Y = 50;    Z = 90;
+X = 80;    Y = -50;    Z = 20;
 
-rpy = [53 37 45]*1;  % static rot from right to left (yaw->pitch->roll) = (x->y->z)
+rpy = [0 90 90]*1;  % static rot from right to left (yaw->pitch->roll) = (x->y->z)
 
 
 Roll  = rpy(1);   % rot global z-axis (b)
@@ -8,37 +8,37 @@ Pitch = rpy(2);   % rot global y-axis (g)
 Yaw   = rpy(3);   % rot global x-axis (r)
 JointAngle = [];
 
-fik_6DOF(X, Y, Z, Roll, Pitch, Yaw);   % åˆå§‹åŒ–æ‰‹è‡‚
+fik_6DOF(X, Y, Z, Roll, Pitch, Yaw);   % ªì©l¤Æ¤âÁu
 clf;
 for i = [0:10:360]
     fik_6DOF(X, Y, Z, Roll, Pitch, Yaw);
 end
 function fik_6DOF(X, Y, Z, Roll, Pitch, Yaw)
-%% ã€Step ï¼‘ã€‘ å»ºç«‹å‚æ•°
-%% 1.1 å®šä¹‰è‡ªç”±åº¦ä¸DHå‚æ•°
-% æ‰‹è‡‚çš„è‡ªç”±åº¦
+%% ¡iStep ¢°¡j «Ø¥ß¦UºØ°Ñ¼Æ¸ê°T
+%% 1.1 ©w¸q¤âÁu¦Û¥Ñ«×»PDH³s±ì°Ñ¼Æªí
+% ¤âÁuªº¦Û¥Ñ«×
 DOF = 6;     
-% å…­è½´çš„ DH åƒæ•°  [ a     Î±        d       Î¸ ]
+% ¤»¶bªº DH °Ñ¼Æ  [ a     £\        d       £c ]
 DH_Parameter = [   0     pi/2     10        0; 
-                   60        0      0        0; 
-                   20     pi/2      0     pi/2; 
-                   30    -pi/2     50        0;
-                   30     pi/2      0        0; 
-                   10        0     20        0   ];  
+                  60        0      0        0; 
+                   0     pi/2      0     pi/2; 
+                   0    -pi/2     50        0;
+                   0     pi/2      0        0; 
+                   0        0     20        0   ];  
               
 Pos = [ X ; Y; Z ];
 Euler_RPY = [Roll, Pitch, Yaw];
 
-%% ã€Step 2ã€‘ è®¡ç®—é€†è¿åŠ¨å­¦
+%% ¡iStep 2¡j ­pºâ°f¹B°Ê¾Çl
 JointAngle = InverseKinematics(Pos, Euler_RPY, DOF, DH_Parameter);
 JointAngle*180/pi
-%% ã€Step 3ã€‘ æ ¹æ®é€†è¿åŠ¨å­¦ç»“æœï¼Œå¸¦å…¥æ­£è¿åŠ¨å­¦éªŒè¯
+%% ¡iStep 3¡j ®Ú¾Ú°f¹B°Ê¾Çµ²ªG¡A¥N¤J¥¿¹B°Ê¾ÇÅçÃÒ
 Info = ForwardKinematics( DOF, JointAngle, DH_Parameter );
 
-%% ã€Step 4ã€‘ ç»˜åˆ¶æ‰‹è‡‚
+%% ¡iStep 4¡j Ã¸»s¤âÁu
 DrawRobotManipulator( DOF, Info.JointPos, Info.JointDir );  
 
-%% ã€Step 5ã€‘ æ˜¾ç¤ºæ­£è¿åŠ¨å­¦ä¿¡æ¯
+%% ¡iStep 5¡j Åã¥Ü¥¿¹B°Ê¾Ç±o¥X¤§¸ê°T
 figure(1);
 str_x = num2str(roundn(Info.P(1), -2));
 str_y = num2str(roundn(Info.P(2), -2));
@@ -54,21 +54,21 @@ title(str)
 end
 
 % =========================================================================
-%                              å‡½æ•° 
+%                              ¡iFunctions¡j 
 % =========================================================================
 
-%% é€†è¿åŠ¨å­¦
-% è¾“å…¥ï¼šæœ«ç«¯ç‚¹ä½ç½®ã€å§¿æ€ã€è‡ªç”±åº¦ã€DHè¡¨ 
-% è¾“å‡ºï¼šå„å…³èŠ‚çš„è§’åº¦
+%% °f¹B°Ê¾Ç
+% ¿é¤J¡G¥½ºİÂI¦ì¸m¡B¥½ºİÂI«ººA¡B¦Û¥Ñ«×¡BDH³s±ìªí 
+% ¿é¥X¡G¦UÃö¸`ªº¨¤«×
 function JointAngle = InverseKinematics(Pos, Euler_RPY, DOF, DH_Parameter)
     if(abs(Euler_RPY(2))>90)
-        fprintf('*** note: pitch>90 degree, feed backæœƒå·®ä¸€å€‹pi *** \n')
+        fprintf('*** note: pitch>90 degree, feed back·|®t¤@­Ópi *** \n')
     end
     DesiredCmd.Roll  = Euler_RPY(1) * pi/180;
     DesiredCmd.Pitch = Euler_RPY(2) * pi/180;
     DesiredCmd.Yaw   = Euler_RPY(3) * pi/180;
     DesiredCmd;
-    %% Step 1. å»ºç«‹å§¿æ€çŸ©é˜µ
+    %% Step 1. «Ø¥ß«ººA¯x°} 
     a  = DesiredCmd.Roll;
     b  = DesiredCmd.Pitch;
     c  = DesiredCmd.Yaw;
@@ -76,8 +76,8 @@ function JointAngle = InverseKinematics(Pos, Euler_RPY, DOF, DH_Parameter)
     RY = [cos(b) 0 sin(b); 0 1 0;-sin(b) 0 cos(b)]; % RY
     RZ = [cos(c) -sin(c) 0; sin(c) cos(c) 0;0 0 1]; % RZ
     OrienMat = RZ*RY*RX;  
-    
-    %% Step 2. åˆå§‹åŒ–ç›¸å…³å‚æ•°
+    %--------------------------------------------------------------------------
+    %% Step 2. ªì©l¤Æ¬ÛÃö°Ñ¼Æ
     DesiredCmd.P     = Pos;                          % desired position
     DesiredCmd.R     = OrienMat;                     % desired orientation
     DesiredCmd.Elbow = -1;                           % Elbow Up = -1, Elbow Down =  1
@@ -85,22 +85,22 @@ function JointAngle = InverseKinematics(Pos, Euler_RPY, DOF, DH_Parameter)
     DesiredCmd.L1    = DH_Parameter( 1, 3 );
     DesiredCmd.L2    = DH_Parameter( 2, 1 ); 
     DesiredCmd.L3    = DH_Parameter( 4, 3 );
-    DesiredCmd.L4    = DH_Parameter( 6, 3 );         % d3 ä¸€èˆ¬è€Œè¨€å°±æ˜¯å¤¾å…·é•·åº¦
+    DesiredCmd.L4    = DH_Parameter( 6, 3 );         % d3 ¤@¯ë¦Ó¨¥´N¬O§¨¨ãªø«×
     DesiredCmd.Angle = zeros( 1, DOF );
 
-    %% Step 3. é€†ä½ç½®è¿åŠ¨å­¦
+    %% Step 3.  °f¦ì¸m¹B°Ê¾Ç
     DesiredCmd = InversePosition( DesiredCmd ); 
 
-    %% Step 4. é€†å§¿æ€è¿åŠ¨å­¦              
+    %% Step 4.  °f«ººA¹B°Ê¾Ç              
     DesiredCmd = InverseOrientation( DesiredCmd, DH_Parameter );
     
-    %% Step 5. è¾“å‡ºçµæœ
+    %% Step 5.  ¿é¥X­pºâµ²ªG
     JointAngle = DesiredCmd.Angle;
 end
 
-%% é€†ä½ç½®è¿åŠ¨å­¦
-% è¾“å…¥ï¼šæœ«ç«¯ç‚¹ä½ç½®ã€æœ«ç«¯ç‚¹å§¿æ€ã€è‡ªç”±åº¦ã€DHè¿æ†è¡¨ 
-% è¾“å‡ºï¼šç¬¬1~3è½´çš„è§’åº¦
+%% °f¦ì¸m¹B°Ê¾Ç
+% ¿é¤J¡G¥½ºİÂI¦ì¸m¡B¥½ºİÂI«ººA¡B¦Û¥Ñ«×¡BDH³s±ìªí 
+% ¿é¥X¡G²Ä1~3¶bªº¨¤«×
 function Cmd = InversePosition( Cmd )
     WristPos = Cmd.P - Cmd.L4 * Cmd.R( 1:3, 3 );  %Oc = [Xc ; Yc ; Zc] = [WristPos(1) WristPos(2) WristPos(3)]
 
@@ -118,9 +118,9 @@ function Cmd = InversePosition( Cmd )
     Cmd.Angle(2) = atan2( s, sqrt( xc_2 + yc_2 ) ) - atan2(Cmd.L3*sin( Cmd.Angle(3) ), Cmd.L2 + Cmd.L3*cos( Cmd.Angle(3) ));
 end
 
-%% é€†å§¿æ€è¿åŠ¨å­¦
-% è¾“å…¥ï¼šæœ«ç«¯ç‚¹ä½ç½®ã€æœ«ç«¯ç‚¹å§¿æ€ã€è‡ªç”±åº¦ã€DHè¿æ†è¡¨ 
-% è¾“å‡ºï¼šç¬¬4~6è½´çš„è§’åº¦
+%% °f«ººA¹B°Ê¾Ç
+% ¿é¤J¡G¥½ºİÂI¦ì¸m¡B¥½ºİÂI«ººA¡B¦Û¥Ñ«×¡BDH³s±ìªí 
+% ¿é¥X¡G²Ä4~6¶bªº¨¤«×
 function Cmd = InverseOrientation( Cmd, DH_Parameter )
     s1  = sin( Cmd.Angle(1) + DH_Parameter(1,4) );
     c1  = cos( Cmd.Angle(1) + DH_Parameter(1,4) );
@@ -152,30 +152,30 @@ function Cmd = InverseOrientation( Cmd, DH_Parameter )
     end
 end
 
-%% æ­£è¿åŠ¨å­¦æ¨å¯¼å‡½å¼
-% è¾“å…¥ï¼šè‡ªç”±åº¦ã€å„å…³èŠ‚çš„è§’åº¦ã€DHè¿æ†è¡¨ 
-% è¾“å‡ºï¼šå„å…³èŠ‚çš„ä½ç½®ã€å„å…³èŠ‚çš„åæ ‡
+%% ¥¿¹B°Ê¾Ç±À¾É¨ç¦¡
+% ¿é¤J¡G¦Û¥Ñ«×¡B¦UÃö¸`ªº¨¤«×¡BDH³s±ìªí 
+% ¿é¥X¡G¦UÃö¸`ªº¦ì¸m¡B¦UÃö¸`ªº®y¼Ğ
 function Info = ForwardKinematics( DOF, JointAngle, DH_Parameter )
-    %% Step 1.åˆå§‹åŒ–å„å…³èŠ‚ä½ç½®å‘é‡ä¸å§¿æ€çŸ©é˜µ
-    Info.JointPos = [0 ;0 ;0];                              % å„å…³èŠ‚çš„åæ ‡ä½ç½®çŸ©é˜µ [ 3 x n ] , n = DOF
-    Info.JointDir = [1 0 0; 0 1 0; 0 0 1];                  % å„å…³èŠ‚çš„åæ ‡å‘é‡çŸ©é˜µ [ 3 x 3n ], n = DOF
-    Info.T0_6     = [ 1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1];  % ç”±æ­£è¿åŠ¨å­¦æ±‚å‡ºçš„è½¬ç§»å‡½æ•°ï¼ŒT0_6 è¡¨ç¤ºæ˜¯ä» Frame0 ~ Frame6
+    %% Step 1.ªì©l¤Æ¦UÃö¸`¦ì¸m¦V¶q»P«ººA¯x°}
+    Info.JointPos = [0 ;0 ;0];                              % ¦UÃö¸`ªº®y¼Ğ¦ì¸m¯x°} [ 3 x n ] , n = DOF
+    Info.JointDir = [1 0 0; 0 1 0; 0 0 1];                  % ¦UÃö¸`ªº®y¼Ğ¦V¶q¯x°} [ 3 x 3n ], n = DOF
+    Info.T0_6     = [ 1 0 0 0; 0 1 0 0; 0 0 1 0; 0 0 0 1];  % ¥Ñ¥¿¹B°Ê¾Ç¨D¥XªºÂà²¾¨ç¼Æ¡AT0_6 ªí¥Ü¬O±q Frame0 ~ Frame6
 
-    %% Step 2.ä½¿ç”¨é½æ¬¡è½¬æ›çŸ©é˜µæ±‚è§£æ­£è¿åŠ¨å­¦
+    %% Step 2.¨Ï¥Î»ô¦¸Âà´«¯x°}¨D¸Ñ¥¿¹B°Ê¾Ç
     for i = 1 : DOF
-        A        = GenerateTransformationMatrices( JointAngle(i) , DH_Parameter(i,:) ); % æŒ‰ç…§å„è½´çš„DHåƒæ•°ä»£å…¥DHè½¬ç§»å‡½æ•°ä¸­
-        Info.T0_6     = Info.T0_6 * A;                                                  % å°‡å…¶ä½œè¿ä¹˜çš„åŠ¨ä½œ
-        Info.JointPos = [ Info.JointPos Info.T0_6( 1:3, 4 ) ];                          % å‚¨å­˜å…³èŠ‚çš„åæ ‡ä½ç½®
-        Info.JointDir = [ Info.JointDir Info.T0_6( 1:3, 1:3 ) ];                        % å„²å­˜å…³èŠ‚çš„å‘é‡ä¿¡æ¯
+        A        = GenerateTransformationMatrices( JointAngle(i) , DH_Parameter(i,:) ); % ¨Ì¾Ú¦U¶bªºDH°Ñ¼Æ¥N¤JDHÂà²¾¨ç¼Æ¤¤
+        Info.T0_6     = Info.T0_6 * A;                                                  % ±N¨ä§@³s­¼ªº°Ê§@
+        Info.JointPos = [ Info.JointPos Info.T0_6( 1:3, 4 ) ];                          % Àx¦sÃö¸`ªº®y¼Ğ¦ì¸m
+        Info.JointDir = [ Info.JointDir Info.T0_6( 1:3, 1:3 ) ];                        % Àx¦sÃö¸`ªº¦V¶q¸ê°T
     end
-     % æŒ‰ç…§Rotation çŸ©é˜µ æ±‚è§£ Pitch, Roll, Yaw
+     % ¨Ì¾ÚRotation ¯x°} ¨D¸Ñ Pitch, Roll, Yaw
 
-    %% Step 3.æå–æœ«ç«¯ç‚¹ä½ç½®å‘é‡ä¸å§¿æ€çŸ©é˜µ
+    %% Step 3.Â^¨ú¥½ºİÂI¦ì¸m¦V¶q»P«ººA¯x°}
     Info.P = Info.T0_6( 1:3, 4 );
     Info.R = Info.T0_6( 1:3, 1:3 );
     R0_6   = Info.T0_6( 1:3, 1:3 );
 
-    %% Step 4.åˆ†ææœ«ç«¯ç‚¹çš„å§¿æ€(Pitch Roll Yaw--z y x) 
+    %% Step 4.¤ÀªR¥½ºİÂIªº«ººA(Pitch Roll Yaw) 
     cal_err = 1*10^-8;
     if( abs(R0_6(3,1)-1) < cal_err)         
         Info.Yaw   = 0;
@@ -193,12 +193,12 @@ function Info = ForwardKinematics( DOF, JointAngle, DH_Parameter )
         Info.Pitch = asin(-R0_6(3,1));
         Info.Yaw   = atan2(R0_6(2,1), R0_6(1,1));
     end
-    % æ­£è¦åŒ–è§’åº¦(ä»‹æ–¼æ­£è² 180åº¦ä¹‹é–“)
+    % ¥¿³W¤Æ¨¤«×(¤¶©ó¥¿­t180«×¤§¶¡)
     Info.Roll  = normalize(Info.Roll);
     Info.Pitch = normalize(Info.Pitch);
     Info.Yaw   = normalize(Info.Yaw);
 
-
+    
 end
 
 function ang = normalize(ang)
@@ -210,7 +210,7 @@ function ang = normalize(ang)
     end
 end
 
-%%  ç”¢ç”Ÿ è½¬ç§»å‡½æ•°
+%%  ²£¥Í Âà²¾¨ç¼Æ
 function A = GenerateTransformationMatrices( Theta, DH_Parameter )
 %    Theta = 0;
     C_Theta = cos( Theta + DH_Parameter(4) );
@@ -224,7 +224,7 @@ function A = GenerateTransformationMatrices( Theta, DH_Parameter )
             0                          0                      0                             1   ];
     
 end
-%%  ç»˜åˆ¶æœºæ¢°è‡‚ è¾“å…¥: è‡ªç”±åº¦ï¼Œå„å…³èŠ‚çš„ä½ç½®ï¼Œå„å…³èŠ‚çš„åæ ‡
+%%  µe¹Ï µe¾÷±ñ¤âÁu ¿é¤J: ¦Û¥Ñ«×¡A¦UÃö¸`ªº¦ì¸m¡A¦UÃö¸`ªº®y¼Ğ
 function DrawRobotManipulator( DOF, JointPos, JointDir  )
     % figure(1)
     % hold off
@@ -233,9 +233,9 @@ function DrawRobotManipulator( DOF, JointPos, JointDir  )
     plot3( JointPos(1,1:end), JointPos(2,1:end), JointPos(3,1:end),'ro','linewidth', 7);
 
     grid on
-    xlabel('Xè½´');
-    ylabel('Yè½´');
-    zlabel('Zè½´');
+    xlabel('X¶b');
+    ylabel('Y¶b');
+    zlabel('Z¶b');
     X =10;
     Y =10;
     Z =20;
@@ -266,7 +266,7 @@ function DrawRobotManipulator( DOF, JointPos, JointDir  )
     patch(BaseX,BaseY,BaseZ,'k')
 
     for i = 1 : DOF+1
-         if(i==DOF+1) %åªç”»TCPçš„XYZè½´
+         if(i==DOF+1) %¥uµeTCPªºXYZ¶b
             %-----------------------------------------
             nUnit_v = JointPos( : , i ) + 10 * JointDir( : , 3 * (i-1) + 1 );
             nBase   = [JointPos( : , i ) nUnit_v];
