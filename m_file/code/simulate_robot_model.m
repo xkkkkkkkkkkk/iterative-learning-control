@@ -18,35 +18,20 @@ function Q_actual = simulate_robot_model(U_input, t)
     % 您可以替换为您自己机械臂的DH参数和动力学参数
     robot_params = struct();
     
-    % PUMA560 DH参数
-    robot_params.DH = [   
-    0,    pi/2,   0,  0;  % Joint 1
-    0.4318, 0,     0,  0;  % Joint 2
-    0.0203, -pi/2, 0.15005, 0;  % Joint 3
-    0,    pi/2,   0.4318, 0;  % Joint 4
-    0,    -pi/2,  0,    0;  % Joint 5
-    0,    0,      0,    0   % Joint 6
-];
-
     % 质量 (kg)
-    robot_params.m = [0.0, 17.4, 4.8, 0.82, 0.34, 0.09]; 
+    robot_params.m = [3.5, 2.3, 1.7, 0.9, 0.5, 0.3]; 
     
     % 连杆长度 (m)
     robot_params.l = [0.3, 0.25, 0.15, 0.1, 0.05, 0.02]; 
     
     % 质心位置 (相对于前一关节坐标系)
-    robot_params.r = {[0, 0, 0],[0.068, 0.006, -0.016], [0.0, 0.0, 0.0],    
-                        [0.0, 0.0, 0.0],[0.0, 0.0, 0.0],[0.0, 0.0, 0.0]};
+    robot_params.r = {[0.1, 0, 0],   [0.15, 0, 0], [0.08, 0, 0], 
+                      [0.05, 0, 0], [0.02, 0, 0], [0.01, 0, 0]};
     
     % 惯性张量 (kg*m^2) {Ixx, Iyy, Izz, Ixy, Ixz, Iyz}
-    robot_params.inertias = {
-    diag([0.0, 0.0, 0.0]), % L0
-    [0.13, 0.0, 0.0; 0.0, 0.524, 0.0; 0.0, 0.0, 0.539], % L1
-    diag([0.0, 0.0, 0.0]), % L2
-    diag([0.0, 0.0, 0.0]), % L3
-    diag([0.0, 0.0, 0.0]), % L4
-    diag([0.0, 0.0, 0.0])  % L5
-};
+    robot_params.I = {[0.1, 0.1, 0.05, 0, 0, 0], [0.05, 0.05, 0.02, 0, 0, 0],
+                      [0.03, 0.03, 0.01, 0, 0, 0], [0.01, 0.01, 0.005, 0, 0, 0],
+                      [0.005, 0.005, 0.002, 0, 0, 0], [0.002, 0.002, 0.001, 0, 0, 0]};
     
     % 重力加速度 (m/s^2)
     robot_params.g = [0, 0, -9.81];
@@ -62,12 +47,10 @@ function Q_actual = simulate_robot_model(U_input, t)
     tau_func = @(time) interp1(t, U_input, time);
     
     % 设置ODE求解器选项（提高精度和稳定性）
-    % 在 simulate_robot_model 函数中，在调用 ode45 之前添加：
-    options = odeset('RelTol', 1e-3, 'AbsTol', 1e-6, 'MaxStep', 0.01); 
-
+    options = odeset('RelTol', 1e-6, 'AbsTol', 1e-8);
     
     % 求解动力学方程
-    [~, state_history] = ode15s(@(time, state) robot_dynamics(time, state, tau_func(time), robot_params),...
+    [~, state_history] = ode45(@(time, state) robot_dynamics(time, state, tau_func(time), robot_params),...
                               t, init_state, options);
     
     % 提取关节角度（每隔一个变量）
@@ -83,8 +66,8 @@ function dstate = robot_dynamics(time, state, tau, params)
     dq = state(2:2:12);    % 关节速度 [dq1, dq2, dq3, dq4, dq5, dq6]
     
     % 计算质量矩阵M(q)[4](@ref)
-    M = calculate_mass_matrix(q, params);
-    disp(det(M));
+    M = diag([0.5, 0.4, 0.3, 0.25, 0.2, 0.15]); 
+    % M = calculate_mass_matrix(q, params);
     
     % 计算科里奥利和离心力矩阵C(q, dq)[4](@ref)
     C = calculate_coriolis_matrix(q, dq, params);
@@ -137,93 +120,6 @@ function C = calculate_coriolis_matrix(q, dq, params)
     for i = 3:6
         C(i) = 0.1 * dq(i)^2; % 简化的离心力项
     end
-end
-function M = calculate_mass_matrix_crb(q, params)
-    % 初始化6x6质量矩阵
-    n = length(q);
-    M = zeros(n);
-    
-    % 计算每个连杆的变换矩阵及其在基坐标系下的空间惯性矩阵
-    T = zeros(4,4,n); % 存储每个连杆到基坐标系的变换矩阵
-    I_spatial = cell(1, n); % 存储每个连杆在基坐标系下的空间惯性矩阵
-    
-    for i = 1:n
-        % 计算到当前连杆的变换矩阵 (使用DH参数)
-        T_i = eye(4);
-        for j = 1:i
-            a = params.DH(j,1);
-            alpha = params.DH(j,2);
-            d = params.DH(j,3);
-            theta = q(j) + params.DH(j,4); % 关节角度 + 初始偏移
-            % 计算标准的DH变换矩阵
-            T_j = [cos(theta), -sin(theta)*cos(alpha), sin(theta)*sin(alpha), a*cos(theta);
-                   sin(theta), cos(theta)*cos(alpha), -cos(theta)*sin(alpha), a*sin(theta);
-                   0, sin(alpha), cos(alpha), d;
-                   0, 0, 0, 1];
-            T_i = T_i * T_j;
-        end
-        T(:,:,i) = T_i;
-        
-        % 将连杆的惯性张量转换到基坐标系下，并构造空间惯性矩阵
-        R = T_i(1:3, 1:3); % 旋转矩阵
-        p = T_i(1:3, 4);   % 位置向量
-        % 将惯性张量变换到基坐标系下
-        I_bi = R * params.I{i} * R';
-        % 计算空间惯性矩阵
-        m_i = params.masses(i);
-        I_spatial{i} = [I_bi + m_i*(p'*p*eye(3) - p*p'), m_i*skew(p)';
-                         m_i*skew(p), m_i*eye(3)];
-    end
-    
-    % CRB算法核心：计算质量矩阵M
-    for i = 1:n
-        % 计算关节i的运动链的复合空间惯性矩阵
-        I_composite = zeros(6,6);
-        for j = i:n
-            I_composite = I_composite + I_spatial{j};
-        end
-        
-        % 计算关节i的运动旋量（在基坐标系下）
-        % 这里需要根据您的DH参数和关节类型（旋转/移动）计算每个关节的运动旋量轴
-        % 以下是一个针对旋转关节的简化示例：
-        if i == 1
-            axis = [0; 0; 1]; % 假设关节1绕z轴旋转
-            point = [0; 0; 0]; % 假设轴通过原点
-        else
-            % 需要根据DH参数计算每个关节的轴向量和轴上的一点
-            % 此处需要您根据真实的DH参数模型完善计算
-            axis = T(1:3,3,i); % 当前关节z轴方向
-            point = T(1:3,4,i); % 当前关节原点
-        end
-        % 构造运动旋量
-        S_i = [-cross(axis, point); axis]; % 对于旋转关节
-        
-        % 计算质量矩阵的第i列
-        F = I_composite * S_i;
-        M(i, i) = S_i' * F;
-        
-        for j = i+1:n
-            % 计算关节j的运动旋量（同样需要完善）
-            if j == 1
-                axis_j = [0; 0; 1];
-                point_j = [0; 0; 0];
-            else
-                axis_j = T(1:3,3,j);
-                point_j = T(1:3,4,j);
-            end
-            S_j = [-cross(axis_j, point_j); axis_j];
-            
-            M(i, j) = S_j' * F;
-            M(j, i) = M(i, j); % 利用对称性
-        end
-    end
-end
-
-% 辅助函数：计算向量的斜对称矩阵
-function S = skew(v)
-    S = [0, -v(3), v(2);
-         v(3), 0, -v(1);
-         -v(2), v(1), 0];
 end
 
 function G = calculate_gravity_vector(q, params)

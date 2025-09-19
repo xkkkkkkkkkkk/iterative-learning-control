@@ -1,6 +1,10 @@
 clear; clc; close all;
 
 %% 初始化参数
+% urdf 模型
+robot  = importrobot('kr10_r1100_2_urdf.urdf'); 
+robot.DataFormat = 'column';
+
 % DH参数
 DH_Parameter = [   0     pi/2     10        0; 
                   60        0      0        0; 
@@ -10,10 +14,10 @@ DH_Parameter = [   0     pi/2     10        0;
                    0        0     20        0   ];  
 
 % 轨迹参数
-totalTime = 5; % 总时间(秒)
+totalTime = 1; % 总时间(秒)
 sampleRate = 100; % 采样率(Hz)
 t = linspace(0, totalTime, totalTime*sampleRate);
-numIteration = 50; % 最大迭代次数
+numIteration = 3; % 最大迭代次数
 
 % 关节轨迹数组
 numPoints = length(t);
@@ -47,67 +51,99 @@ for i = 1:numPoints
     jointAngles(i, :) = InverseKinematics(currentPos, currentEuler, numJoints, DH_Parameter);
     
     % 显示进度
-    % if mod(i, 50) == 0
-    %     fprintf('已完成 %.1f%%\n', (i/numPoints)*100);
-    % end
+    if mod(i, 50) == 0
+        fprintf('已完成 %.1f%%\n', (i/numPoints)*100);
+    end
 end
 
 %% ILC迭代循环
-for k = 1:numIteration
-    U_input = U_contorl;
-    if k >1
-        Delta_U = ILC_update(err(:,:,k-1), t, Kp, Kd );
-        U_input = U_input + Delta_U;
-    end
-    Q_actual = simulate_robot_model(U_input, t);
-    e_k = jointAngles - Q_actual;
-    err(:, :, k) = e_k;
-    U_contorl = U_input;
+initConfig = homeConfiguration(robot);
+q0 = jointAngles(1,:)';
+dq0 = zeros(6, 1);
+init_state = zeros(2*6, 1);
+init_state(1:2:end) = q0;
+init_state(2:2:end) = dq0;
+options = odeset('RelTol', 1e-6, 'AbsTol', 1e-8);
+% for k = 1:numIteration
+%     U_input = U_contorl;
+%     if k >1
+%         Delta_U = ILC_update(err(:,:,k-1), t, Kp, Kd );
+%         U_input = U_input + Delta_U;
+%     end
+% 
+%     % 调用ODE45之前，定义力矩插值函数
+%     tau_func = @(time) [interp1(t, U_input(:,1), time)'; ... % 插值得到tau1
+%         interp1(t, U_input(:,2), time)'; ... % 插值得到tau2
+%         interp1(t, U_input(:,3), time)'; ... % 插值得到tau3
+%         interp1(t, U_input(:,4), time)'; ... % 插值得到tau4
+%         interp1(t, U_input(:,5), time)'; ... % 插值得到tau5
+%         interp1(t, U_input(:,6), time)'];    % 插值得到tau6
+% 
+%     % Q_actual = simulate_robot_model(U_input, t);
+% 
+%     [t_sim, state_history] = ode45(@(t,state) robot_dynamics_ode(t, state, tau_func(t), robot), t, init_state, options);
+%     Q_actual = state_history(:, 1:2:12);
+% 
+%     e_k = jointAngles - Q_actual;
+%     err(:, :, k) = e_k;
+%     U_contorl = U_input;
+% 
+%     rms_err(k) = rms(e_k(:));
+%     if rms_err(k) < desired_threshold
+%         fprintf('收敛于 %d 次 \n', k);
+%         break;
+%     end 
+% end
 
-    rms_err(k) = rms(e_k(:));
-    if rms_err(k) < desired_threshold
-        fprintf('收敛于 %d 次 \n', k);
-        break;
-    end
-    % plot(t, jointAngles, Q_actual, k);
-end
+%% 单独测试动力学模型
+test_tau = zeros(length(t), 6); % 生成一个全零的测试力矩输入
+test_tau_func = @(time) [interp1(t, test_tau(:,1), time)';
+                         interp1(t, test_tau(:,2), time)';
+                         interp1(t, test_tau(:,3), time)';
+                         interp1(t, test_tau(:,4), time)';
+                         interp1(t, test_tau(:,5), time)';
+                         interp1(t, test_tau(:,6), time)';];
+fprintf('开始运行单独动力学测试...\n');
+[test_t_sim, test_state_history] = ode45(@(t,state) robot_dynamics_ode(t, state, test_tau_func(t), robot), t, init_state, options);
+fprintf('单独动力学测试完成。\n');
+plot(test_t_sim, test_state_history(:,1:6));
+title('单独动力学测试：零输入响应');
 
 % 4. 可视化结果
-figure('Name', '关节轨迹', 'Color', 'white', 'Position', [100, 100, 1200, 800]);
-subplot(2, 1, 1);
-plot(t, rad2deg(jointAngles), 'LineWidth', 1.5);
-title('关节角度轨迹');
-xlabel('时间 (s)');
-ylabel('角度 (°)');
-legend('关节1', '关节2', '关节3', '关节4', '关节5', '关节6');
-grid on;
-fprintf('时间向量 t 的长度: %d\n', length(t));
-
-
-for i = 1:6
-    jointVelocity(:,i) = gradient(jointAngles(:, i), t);
-end
-
-subplot(2, 1, 2);
-plot(t, jointVelocity, 'LineWidth', 1.5);
-title('关节角速度');
-xlabel('时间 (s)');
-ylabel('角速度 (rad/s)');
-grid on;
+% figure('Name', '关节轨迹', 'Color', 'white', 'Position', [100, 100, 1200, 800]);
+% subplot(2, 1, 1);
+% plot(t, rad2deg(jointAngles), 'LineWidth', 1.5);
+% title('关节角度轨迹');
+% xlabel('时间 (s)');
+% ylabel('角度 (°)');
+% legend('关节1', '关节2', '关节3', '关节4', '关节5', '关节6');
+% grid on;
+% fprintf('时间向量 t 的长度: %d\n', length(t));
+% 
+% for i = 1:6
+%     jointVelocity(:,i) = gradient(jointAngles(:, i), t);
+% end
+% 
+% subplot(2, 1, 2);
+% plot(t, jointVelocity, 'LineWidth', 1.5);
+% title('关节角速度');
+% xlabel('时间 (s)');
+% ylabel('角速度 (rad/s)');
+% grid on;
 
 % 验证轨迹：通过正运动学验证几个关键点
-fprintf('验证轨迹精度...\n');
-checkPoints = [1, round(numPoints/2), numPoints];
-for i = 1:length(checkPoints)
-    idx = checkPoints(i);
-    jointAngles = jointAngles(idx, :);
-    
-    % 计算正运动学
-    Info = ForwardKinematics(numJoints, jointAngles, DH_Parameter);
-    
-    % 计算误差
-    posError = norm(desired_pos(idx, :) - Info.P');
-    orientError = norm(desired_euler(idx, :) - [Info.Roll, Info.Pitch, Info.Yaw]);
-    
-    fprintf('点 %d: 位置误差=%.4f mm, 姿态误差=%.4f rad\n', idx, posError, orientError);
-end
+% fprintf('验证轨迹精度...\n');
+% checkPoints = [1, round(numPoints/2), numPoints];
+% for i = 1:length(checkPoints)
+%     idx = checkPoints(i);
+%     jointAngles = jointAngles(idx, :);
+% 
+%     % 计算正运动学
+%     Info = ForwardKinematics(numJoints, jointAngles, DH_Parameter);
+% 
+%     % 计算误差
+%     posError = norm(desired_pos(idx, :) - Info.P');
+%     orientError = norm(desired_euler(idx, :) - [Info.Roll, Info.Pitch, Info.Yaw]);
+% 
+%     fprintf('点 %d: 位置误差=%.4f mm, 姿态误差=%.4f rad\n', idx, posError, orientError);
+% end
