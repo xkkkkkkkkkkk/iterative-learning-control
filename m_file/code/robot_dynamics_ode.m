@@ -14,8 +14,6 @@ function dstate = robot_dynamics_ode(t, state, tau, robot)
     % 2. 从状态向量中提取关节位置和速度
     q = state(1:2:end);   % 提取所有关节位置 (Nx1)
     dq = state(2:2:end);  % 提取所有关节速度 (Nx1)
-    fprintf('t=%.3f, tau=[%s], q=[%s]\n', t, ...
-            num2str(tau', '%.2f '), num2str(q', '%.2f ')); % 显示时间和关键变量
 
 
     % 3. 计算机器人动力学

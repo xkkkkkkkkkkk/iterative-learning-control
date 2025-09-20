@@ -17,7 +17,7 @@ DH_Parameter = [   0     pi/2     10        0;
 totalTime = 1; % 总时间(秒)
 sampleRate = 100; % 采样率(Hz)
 t = linspace(0, totalTime, totalTime*sampleRate);
-numIteration = 3; % 最大迭代次数
+numIteration = 10; % 最大迭代次数
 
 % 关节轨迹数组
 numPoints = length(t);
@@ -26,8 +26,10 @@ jointAngles = zeros(numPoints, numJoints);
 jointVelocity = zeros(numPoints, numJoints);
 
 % ILC参数
-Kp = 0.1;
-Kd = 0.01;
+% Kp = diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.01]);
+Kp = 0.01;
+% Kd = diag([0.01, 0.01, 0.01, 0.01, 0.01, 0.001]);
+Kd = 0.001;
 err = zeros(numPoints, numJoints, numIteration);
 U_contorl = zeros(numPoints, numJoints);
 desired_threshold = 1e-3;
@@ -57,43 +59,43 @@ for i = 1:numPoints
 end
 
 %% ILC迭代循环
-% initConfig = homeConfiguration(robot);
-% q0 = jointAngles(1,:)';
-% dq0 = zeros(6, 1);
-% init_state = zeros(2*6, 1);
-% init_state(1:2:end) = q0;
-% init_state(2:2:end) = dq0;
-% options = odeset('RelTol', 1e-6, 'AbsTol', 1e-8);
-% for k = 1:numIteration
-%     U_input = U_contorl;
-%     if k >1
-%         Delta_U = ILC_update(err(:,:,k-1), t, Kp, Kd );
-%         U_input = U_input + Delta_U;
-%     end
-% 
-%     % 调用ODE45之前，定义力矩插值函数
-%     tau_func = @(time) [interp1(t, U_input(:,1), time)'; ... % 插值得到tau1
-%         interp1(t, U_input(:,2), time)'; ... % 插值得到tau2
-%         interp1(t, U_input(:,3), time)'; ... % 插值得到tau3
-%         interp1(t, U_input(:,4), time)'; ... % 插值得到tau4
-%         interp1(t, U_input(:,5), time)'; ... % 插值得到tau5
-%         interp1(t, U_input(:,6), time)'];    % 插值得到tau6
-% 
-%     % Q_actual = simulate_robot_model(U_input, t);
-% 
-%     [t_sim, state_history] = ode45(@(t,state) robot_dynamics_ode(t, state, tau_func(t), robot), t, init_state, options);
-%     Q_actual = state_history(:, 1:2:12);
-% 
-%     e_k = jointAngles - Q_actual;
-%     err(:, :, k) = e_k;
-%     U_contorl = U_input;
-% 
-%     rms_err(k) = rms(e_k(:));
-%     if rms_err(k) < desired_threshold
-%         fprintf('收敛于 %d 次 \n', k);
-%         break;
-%     end 
-% end
+initConfig = homeConfiguration(robot);
+q0 = jointAngles(1,:)';
+dq0 = zeros(6, 1);
+init_state = zeros(2*6, 1);
+init_state(1:2:end) = q0;
+init_state(2:2:end) = dq0;
+options = odeset('RelTol', 1e-6, 'AbsTol', 1e-8);
+for k = 1:numIteration
+    U_input = U_contorl;
+    if k >1
+        Delta_U = ILC_update(err(:,:,k-1), t, Kp, Kd );
+        U_input = U_input + Delta_U;
+    end
+
+    % 调用ODE45之前，定义力矩插值函数
+    tau_func = @(time) [interp1(t, U_input(:,1), time)'; ... % 插值得到tau1
+        interp1(t, U_input(:,2), time)'; ... % 插值得到tau2
+        interp1(t, U_input(:,3), time)'; ... % 插值得到tau3
+        interp1(t, U_input(:,4), time)'; ... % 插值得到tau4
+        interp1(t, U_input(:,5), time)'; ... % 插值得到tau5
+        interp1(t, U_input(:,6), time)'];    % 插值得到tau6
+
+    % Q_actual = simulate_robot_model(U_input, t);
+
+    [t_sim, state_history] = ode15s(@(t,state) robot_dynamics_ode(t, state, tau_func(t), robot), t, init_state, options);
+    Q_actual = state_history(:, 1:2:12);
+
+    e_k = jointAngles - Q_actual;
+    err(:, :, k) = e_k;
+    U_contorl = U_input;
+
+    rms_err(k) = rms(e_k(:));
+    if rms_err(k) < desired_threshold
+        fprintf('收敛于 %d 次 \n', k);
+        break;
+    end 
+end
 
 %% 单独测试动力学模型
 % test_tau = zeros(length(t), 6); % 生成一个全零的测试力矩输入
@@ -120,7 +122,6 @@ legend('关节1', '关节2', '关节3', '关节4', '关节5', '关节6');
 grid on;
 fprintf('时间向量 t 的长度: %d\n', length(t));
 
-
 for i = 1:6
     jointVelocity(:,i) = gradient(jointAngles(:, i), t);
 end
@@ -131,6 +132,17 @@ title('关节角速度');
 xlabel('时间 (s)');
 ylabel('角速度 (rad/s)');
 grid on;
+
+figure('Name','关节跟踪误差');
+for i = 1:numJoints
+    subplot(2, 3, joint); % 创建2行3列的子图，并在第joint个位置绘图
+    plot(t, error_data(:, joint), 'LineWidth', 1.5);
+    grid on;
+    xlabel('时间 (s)');
+    ylabel('误差 (rad)');
+    title(sprintf('关节 %d', joint));
+end
+
 
 % 验证轨迹：通过正运动学验证几个关键点
 % fprintf('验证轨迹精度...\n');

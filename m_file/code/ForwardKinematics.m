@@ -9,7 +9,8 @@ function Info = ForwardKinematics( DOF, JointAngle, DH_Parameter )
 
     %% Step 2.使用齐次转換矩阵求解正运动学
     for i = 1 : DOF
-        A        = GenerateTransformationMatrices( JointAngle(i) , DH_Parameter(i,:) ); % 按照各轴的DH參数代入DH转移函数中
+        DH = DH_Parameter(i, :);
+        A        = GenerateTransformationMatrices( JointAngle(i) , DH ); % 按照各轴的DH參数代入DH转移函数中
         Info.T0_6     = Info.T0_6 * A;                                                  % 將其作连乘的动作
         Info.JointPos = [ Info.JointPos Info.T0_6( 1:3, 4 ) ];                          % 储存关节的坐标位置
         Info.JointDir = [ Info.JointDir Info.T0_6( 1:3, 1:3 ) ];                        % 儲存关节的向量信息
