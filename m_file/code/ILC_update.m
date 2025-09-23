@@ -14,9 +14,11 @@ function Delta_U = ILC_update(Error_prev, t, Kp, Kd)
         % 计算误差导数（中心差分）
         e_prev_dot = gradient(e_prev, dt);
 
+        % if j == 6
+        %     Delta_U(:, j) = 0.001 * e_prev + 0.0001 * e_prev_dot;
+        % else
+
         % PD型学习律: Delta_u(t) = Kp * e_{k-1}(t) + Kd * de_{k-1}/dt(t)
-        % 注意：这里使用的是t时刻的误差和导数。
-        % 有些 formulations 会使用 t+1 时刻[2](@ref)，这需要根据您的系统延迟情况调整。
         Delta_U(:, j) = Kp * e_prev + Kd * e_prev_dot;
     end
 end

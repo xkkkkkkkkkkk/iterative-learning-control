@@ -4,6 +4,7 @@ clear; clc; close all;
 % urdf 模型
 robot  = importrobot('kr10_r1100_2_urdf.urdf'); 
 robot.DataFormat = 'column';
+robot.Gravity = [0, 0, -9.81];
 
 % DH参数
 DH_Parameter = [   0     pi/2     10        0; 
@@ -14,10 +15,10 @@ DH_Parameter = [   0     pi/2     10        0;
                    0        0     20        0   ];  
 
 % 轨迹参数
-totalTime = 2; % 总时间(秒)
+totalTime = 5; % 总时间(秒)
 sampleRate = 100; % 采样率(Hz)
 t = linspace(0, totalTime, totalTime*sampleRate);
-numIteration = 5; % 最大迭代次数
+numIteration = 25; % 最大迭代次数
 
 % 关节轨迹数组
 numPoints = length(t);
@@ -26,13 +27,13 @@ jointAngles = zeros(numPoints, numJoints);
 jointVelocity = zeros(numPoints, numJoints);
 
 % ILC参数
-% Kp = diag([0.1, 0.1, 0.1, 0.1, 0.1, 0.01]);
+% Kp = [0.1, 0.1, 0.1, 0.1, 0.1, 0.01];
 Kp = 0.01;
-% Kd = diag([0.01, 0.01, 0.01, 0.01, 0.01, 0.001]);
+% Kd = [0.01, 0.01, 0.01, 0.01, 0.01, 0.001];
 Kd = 0.001;
 err = zeros(numPoints, numJoints, numIteration);
 U_contorl = zeros(numPoints, numJoints);
-desired_threshold = 1e-3;
+desired_threshold = 0.1;
 
 % 定义起始和目标位姿（笛卡尔）
 startPose = [50, 50, 50, deg2rad(30), deg2rad(60), deg2rad(45)]; % [x,y,z,roll,pitch,yaw]
@@ -65,7 +66,8 @@ dq0 = zeros(6, 1);
 init_state = zeros(2*6, 1);
 init_state(1:2:end) = q0;
 init_state(2:2:end) = dq0;
-options = odeset('RelTol', 1e-6, 'AbsTol', 1e-8);
+options = odeset('RelTol', 1e-6, 'AbsTol', 1e-10);
+fprintf('开始ILC迭代循环...\n');
 for k = 1:numIteration
     U_input = U_contorl;
     if k >1
@@ -95,9 +97,10 @@ for k = 1:numIteration
         fprintf('收敛于 %d 次 \n', k);
         break;
     end 
+    fprintf('已完成第%.1f次迭代\n', k);
 end
 
-%% 单独测试动力学模型
+% 单独测试动力学模型
 % test_tau = zeros(length(t), 6); % 生成一个全零的测试力矩输入
 % test_tau_func = @(time) [interp1(t, test_tau(:,1), time)';
 %                          interp1(t, test_tau(:,2), time)';
@@ -169,7 +172,7 @@ end
 plot3(desired_positions(:,1), desired_positions(:,2), desired_positions(:,3), ...
     'b-', 'LineWidth', 2, 'DisplayName', '期望轨迹');
 plot3(actual_positions(:,1), actual_positions(:,2), actual_positions(:,3), ...
-    'ro', 'LineWidth', 2, 'DisplayName', '实际轨迹');
+    'r', 'LineWidth', 2, 'DisplayName', '实际轨迹');
 
 
 % 标记起点和终点
