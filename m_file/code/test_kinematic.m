@@ -2,7 +2,7 @@
 X_start = 50;    Y_start = 50;    Z_start = 90;
 Roll_start = 53; Pitch_start = 37; Yaw_start = 45;
 
-X_end = 100;    Y_end = 30;    Z_end = 120;
+X_end = 20;    Y_end = 30;    Z_end = 35;
 Roll_end = 30;  Pitch_end = 60;  Yaw_end = -20;
 
 % 手臂的自由度
@@ -41,8 +41,6 @@ for i = 1:numSamples
     % 计算正运动学用于绘制
     Info = ForwardKinematics(DOF, currentJointAngle, DH_Parameter);
     
-    % 绘制机械臂
-    DrawRobotManipulator(DOF, Info.JointPos, Info.JointDir);
     
     % 可选：绘制末端轨迹
     plot3(Info.P(1), Info.P(2), Info.P(3), 'r.', 'MarkerSize', 2);

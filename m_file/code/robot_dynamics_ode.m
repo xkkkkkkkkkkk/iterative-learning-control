@@ -20,14 +20,24 @@ function dstate = robot_dynamics_ode(t, state, tau, robot)
     M = massMatrix(robot, q); 
     
     % 计算科里奥利力、离心力、重力向量 (C(q,dq) + G(q)) (Nx1)
+    
+    % gravity_only = inverseDynamics(robot, q, zeros(size(dq)), zeros(size(dq)));
+    % 调试输出：比较控制力矩与重力补偿需求
+    % if t > 0.1 && t < 0.2  % 只在前0.2秒输出，避免信息过多
+    %     fprintf('t=%.2f: 控制力矩=[%.3f,%.3f,%.3f], 重力需求=[%.3f,%.3f,%.3f], 差值=[%.3f,%.3f,%.3f]\n', ...
+    %         t, tau(1), tau(2), tau(3), gravity_only(1), gravity_only(2), gravity_only(3), ...
+    %         tau(1)-gravity_only(1), tau(2)-gravity_only(2), tau(3)-gravity_only(3));
+    % end
+
     tau_coriolis_gravity = inverseDynamics(robot, q, dq, zeros(size(dq))); 
     
     % 4. 求解关节加速度
     dampingCoefficients = [1.5, 1.0, 0.7, 0.3, 0.2, 0.1];
     tau_damping = -dampingCoefficients(:) .* dq;
     ddq = M \ (tau - tau_coriolis_gravity + tau_damping);
+    % ddq = M \ (tau - tau_coriolis_gravity);
     
-    % if t > 0.3 && t < 0.35  
+    % if t > 4.5 && t < 5  
     %     disp('质量矩阵 M:');
     %     disp(M);
     %     disp('科里奥利/重力项 tau_coriolis_gravity:');
@@ -43,8 +53,8 @@ function dstate = robot_dynamics_ode(t, state, tau, robot)
         dstate(2*i) = ddq(i);      % 速度导数 = 加速度
     end
 
-    % if t > 1.0 && t < 1.5
-    %     fprintf('t=%.3f, q6=%.3f, dq6=%.3f, tau6=%.3f, ddq6=%.3f\n', t, q(6), dq(6), tau(6), ddq(6));
+    % if t > 4.5 && t < 5
+    %     fprintf('t=%.3f, q3=%.3f, dq3=%.3f, tau3=%.3f, ddq3=%.3f\n', t, q(3), dq(3), tau(3), ddq(3));
     % end
 
 end

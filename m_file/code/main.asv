@@ -7,12 +7,12 @@ robot.DataFormat = 'column';
 robot.Gravity = [0, 0, -9.81];
 
 % DH参数
-DH_Parameter = [   0         pi/2     0.2297   0; 
-                   0.56        0      0.1703   0; 
-                   0.215     pi/2     0.025    0; 
-                   0.3      -pi/2     0        0;
-                   0.09      pi/2     0        0; 
-                   0           0      0        0   ];  
+DH_Parameter = [   0     pi/2     10        0; 
+                  0.56        0      0        0; 
+                   0     pi/2      0        0; 
+                   0    -pi/2     50        0;
+                   0     pi/2      0        0; 
+                   0        0     20        0   ];  
 
 % 轨迹参数
 totalTime = 5; % 总时间(秒)

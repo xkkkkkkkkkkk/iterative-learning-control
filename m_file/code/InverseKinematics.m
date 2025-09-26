@@ -55,7 +55,9 @@ function Cmd = InversePosition( Cmd )
 
     s    = WristPos(3) - Cmd.L1;
     D    = acos(( Cmd.L2^2 + Cmd.L3^2 - xc_2 - yc_2 - s^2  )/( 2.0 * Cmd.L2 * Cmd.L3 ));
+    disp(D);
     Cmd.Angle(3)= D - pi;
+    disp(Cmd.Angle(3));
 
     Cmd.Angle(2) = atan2( s, sqrt( xc_2 + yc_2 ) ) - atan2(Cmd.L3*sin( Cmd.Angle(3) ), Cmd.L2 + Cmd.L3*cos( Cmd.Angle(3) ));
 end
